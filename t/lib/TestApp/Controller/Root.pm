@@ -2,10 +2,9 @@ package TestApp::Controller::Root;
 
 use Moose;
 use namespace::autoclean;
-use Data::Dumper;
 
 BEGIN {
-    extends 'Catalyst::Controller::ActionRole';
+    extends 'Catalyst::Controller';
 }
 
 __PACKAGE__->config(
@@ -19,6 +18,8 @@ __PACKAGE__->config(
         },
     },
 );
+
+use Data::Dumper;
 
 sub store_action
     :Path('store_action') 
