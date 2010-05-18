@@ -1,23 +1,17 @@
 use strict;
 use warnings;
-use Test::More 0.89;
-use HTTP::Request::Common qw/GET POST DELETE/;
+use Test::More;
+
+use_ok 'Catalyst::ActionRole::BuildDBICResult';
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-use Catalyst::Test 'TestApp';
+use_ok 'TestApp';
 
-is(request(GET    '/foo')->content, 'get');
-is(request(POST   '/foo')->content, 'post');
-is(request(DELETE '/foo')->content, 'default');
+use Data::Dump 'dump';
 
-is(request(GET    '/bar')->content, 'get or post');
-is(request(POST   '/bar')->content, 'get or post');
-is(request(DELETE '/bar')->content, 'default');
-
-is(request(GET    '/baz')->content, 'any');
-is(request(POST   '/baz')->content, 'any');
-is(request(DELETE '/baz')->content, 'any');
+warn dump (TestApp->controller('Root')->action_for('user')->store);
+warn dump (TestApp->controller('Root')->action_for('user')->find_condition);
 
 done_testing;

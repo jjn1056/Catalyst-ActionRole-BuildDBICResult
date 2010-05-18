@@ -7,21 +7,23 @@ BEGIN {
 use Moose::Role;
 use namespace::autoclean;
 use Perl6::Junction qw(any all);
-use Moose::Util::TypeConstraints qw(subtype);
+use Moose::Util::TypeConstraints;
 
 subtype 'StoreType',
     as 'HashRef',
     where {
         my ($store_type, @extra) = keys %$_;
+        my $return;
         unless(@extra) {
-            if($store_type eq any(qw/model method stash/))
-                1;
+            if($store_type eq any(qw/model method stash/)) {
+                $return = 1;
             } else {
-                0;
+                $return = 0;
             }
         } else {
-            0;
+            $return = 0;
         }
+        $return;
     };
 
 coerce 'StoreType',
@@ -33,43 +35,49 @@ has 'store' => (
     is => 'ro',
     coerce => 1,
     required => 1,
+    lazy => 1,
+    default => sub { +{method=>'get_model'} },
 );
 
 subtype 'FindCondition',
     as 'HashRef',
     where {
         my @keys = keys(%$_);
+        my $return;
         if(
-            (any(@keys) eq any(qw/constaint_name columns/)) and
+            (any(@keys) eq any(qw/constraint_name columns/)) and
             (all(@keys) eq any(qw/constraint_name match_order columns/))
         ) {
-            1;
+            $return = 1; 
         } else {
-            0;
+            $return = 0;
         }
+        $return;
     };
 
 subtype 'FindConditions',
     as 'ArrayRef[FindCondition]';
 
-coerce 'FindCondition',
+coerce 'FindConditions',
     from 'FindCondition',
     via { [$_] },
     from 'Str',
-    via { [{constraint_name=>$_}]};
+    via { [{constraint_name=>$_}] };
 
 has 'find_condition' => (
     isa => 'FindConditions',
     is => 'ro',
-    coerce => 1,
+    coerce => 0,
     required => 1,
+    lazy => 1,
+    default => sub { +[{constraint_name=>'primary'}] },
 );
 
-has 'auto_stash' => (is=>'ro', requird=>1, default=>0);
-has 'detach_exceptions' => ((is=>'ro', requird=>1, default=>0);
+has 'auto_stash' => (is=>'ro', required=>1, lazy=>1, default=>0);
+has 'detach_exceptions' => (is=>'ro', required=>1, lazy=>1, default=>0);
 
 subtype 'HandlerActionInfo',
-    as 'HashRef'
+    as 'HashRef',
     where {
         my @keys = keys(%$_);
         if(
@@ -82,11 +90,11 @@ subtype 'HandlerActionInfo',
         }
     };
 
-subytype 'Handlers',
+subtype 'Handlers',
     as 'HashRef[HandlerActionInfo]',
     where {
         my @keys = %$_;
-        if(all(@keys) eq any(qw/found notfound error/) {
+        if(all(@keys) eq any(qw/found notfound error/)) {
             1;
         } else {
             0;

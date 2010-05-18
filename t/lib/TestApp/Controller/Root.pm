@@ -2,40 +2,26 @@ package TestApp::Controller::Root;
 
 use Moose;
 use namespace::autoclean;
+use Data::Dumper;
 
 BEGIN {
     extends 'Catalyst::Controller::ActionRole';
 }
 
 __PACKAGE__->config(
-    namespace    => '',
-    action_roles => ['MatchRequestMethod'],
+    namespace => '',
+    action_args => {
+        'store_action' => {
+            store => {model => 'User'},
+        },
+    },
 );
 
-sub default : Path Args {
+sub store_action :Path :Does('BuildDBICResult') {
     my ($self, $ctx) = @_;
-    $ctx->response->body('default');
+    $ctx->response->body(Dumper $ctx->action->store);
 }
 
-sub get : Path('foo') Method('GET') {
-    my ($self, $ctx) = @_;
-    $ctx->response->body('get');
-}
-
-sub post : Path('foo') Method('POST') {
-    my ($self, $ctx) = @_;
-    $ctx->response->body('post');
-}
-
-sub get_or_post : Path('bar') Method('GET') Method('POST') {
-    my ($self, $ctx) = @_;
-    $ctx->response->body('get or post');
-}
-
-sub any_method : Path('baz') {
-    my ($self, $ctx) = @_;
-    $ctx->response->body('any');
-}
 
 __PACKAGE__->meta->make_immutable;
 
