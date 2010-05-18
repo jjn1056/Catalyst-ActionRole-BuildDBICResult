@@ -8,13 +8,16 @@ use lib "$FindBin::Bin/lib";
 
 use Catalyst::Test 'TestApp';
 
-ok my $store = request(GET '/store_action')->content,
+ok my $store_action_res = request(GET '/store_action')->content,
   'Got store content';
 
-##$store = eval($store);
+ok my $store_actionrole_res = request(GET '/store_actionrole')->content,
+  'Got store content';
+
 
 use Data::Dump 'dump';
-warn dump $store;
+warn dump $store_action_res;
+warn dump $store_actionrole_res;
 
 done_testing;
 

@@ -14,14 +14,27 @@ __PACKAGE__->config(
         'store_action' => {
             store => {model => 'User'},
         },
+        'store_actionrole' => {
+            store => {model => 'User'},
+        },
     },
 );
 
-sub store_action :Path :Does('BuildDBICResult') {
+sub store_action
+    :Path('store_action') 
+    :ActionClass('+TestApp::Action::BuildDBICResult')
+{
     my ($self, $ctx) = @_;
     $ctx->response->body(Dumper $ctx->action->store);
 }
 
+sub store_actionrole
+    :Path('store_actionrole')
+    :Does('BuildDBICResult')
+{
+    my ($self, $ctx) = @_;
+    $ctx->response->body(Dumper $ctx->action->store);
+}
 
 __PACKAGE__->meta->make_immutable;
 
