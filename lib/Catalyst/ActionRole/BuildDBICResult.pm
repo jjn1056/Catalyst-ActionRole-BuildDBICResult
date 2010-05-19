@@ -48,7 +48,11 @@ subtype 'FindCondition',
             (any(@keys) eq any(qw/constraint_name columns/)) and
             (all(@keys) eq any(qw/constraint_name match_order columns/))
         ) {
-            $return = 1; 
+            if($_->{columns} and ref $_->{columns}) {
+                $return = ref $_->{columns} eq 'ARRAY' ? 1 : 0;
+            } else {
+                $return = 1;
+            }
         } else {
             $return = 0;
         }
@@ -60,14 +64,14 @@ subtype 'FindConditions',
 
 coerce 'FindConditions',
     from 'FindCondition',
-    via { [$_] },
+    via { +[$_] },
     from 'Str',
-    via { [{constraint_name=>$_}] };
+    via { +[{constraint_name=>$_}] };
 
 has 'find_condition' => (
     isa => 'FindConditions',
     is => 'ro',
-    coerce => 0,
+    coerce => 1,
     required => 1,
     lazy => 1,
     default => sub { +[{constraint_name=>'primary'}] },
