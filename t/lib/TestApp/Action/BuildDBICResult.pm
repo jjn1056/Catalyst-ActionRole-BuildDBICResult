@@ -1,4 +1,5 @@
-package TestApp::Action::BuildDBICResult;
+package # hide from PAUSE
+  TestApp::Action::BuildDBICResult;
 
 use Moose;
 use namespace::autoclean;

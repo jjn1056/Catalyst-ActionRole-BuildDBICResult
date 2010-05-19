@@ -1,4 +1,5 @@
-package TestApp::Controller::Inherit;
+package # hide from PAUSE
+  TestApp::Controller::Inherit;
 
 use Moose;
 use namespace::autoclean;
