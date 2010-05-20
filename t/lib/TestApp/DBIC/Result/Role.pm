@@ -1,7 +1,7 @@
 package # Hide from PAUSE
   TestApp::DBIC::Result::Role;
 
-use base 'Freestock::Schema::Result';
+use base 'TestApp::DBIC::Result';
 
 __PACKAGE__->table('role');
 __PACKAGE__->add_columns(

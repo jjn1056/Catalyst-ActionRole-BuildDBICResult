@@ -15,7 +15,7 @@ subtype 'StoreType',
         my ($store_type, @extra) = keys %$_;
         my $return;
         unless(@extra) {
-            if($store_type eq any(qw/model method stash/)) {
+            if($store_type eq any(qw/model method stash value coderef/)) {
                 $return = 1;
             } else {
                 $return = 0;
@@ -300,10 +300,61 @@ Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
 This is useful if you are descending a chain of actions and modifying or
 restricting a resultset based on the context or other logic.
 
+=item {value = $resultset_object}
+
+Assigns a literal value, expected to be a value L<DBIx:Class::ResultSet>
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                store => { value => $schema->resultset('User') },
+            },
+        }
+    );
+
+Useful if you need to directly assign an already prepared resultset as the 
+value for doing 'find's against.  You might use this with a more capable
+inversion of control container, such as L<Catalyst::Plugin::Bread::Board>.
+
+=item {coderef => sub { ... }}
+
+Similar to the 'value' option above, might be useful if you are doing tricky
+setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
+
+    sub get_me_a_resultset {
+        my ($action, $controller, $ctx, @args) = @_;
+        ## Some custom instantiation needs
+        return $resultset;
+    }
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                store => { coderef => \&get_me_a_resultset },
+            },
+        }
+    );
+
+The coderef gets the following arguments: $action, which is the action object
+for the L<Catalyst::Action> based instance, $controller, which is the controller
+object containing the action, $ctx, which is the current context, and an array
+of arguments which are the arguments passed to the action.
+
 =back
 
-NOTE: We also automatically coerce a Str value of $str to {model => $str}, since
-this is a common case.  For example
+NOTE: In order to reduce extra boilerplate and needless typing in your
+configuration, we will automatically try to coerce a String value to one of the
+listed HashRef values.  We coerce depending on the String value given based on
+the following criteria:
+
+=over 4
+
+=item store => Str
+
+We also automatically coerce a Str value of $str to {model => $str}, IF $str
+begins with an uppercased letter or the string contains "::", indicating the
+value is a namespace target, and to {stash => $str} otherwise.  We believe
+this is a common case for these types.
 
     __PACKAGE__->config(
         action_args => {
@@ -313,6 +364,60 @@ this is a common case.  For example
             },
         }
     );
+
+
+    ## Perl practices indicate you should Title Case object namespaces, but
+    ## in case you have some of these we try to detect and do the right thing.
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                ## Internally coerced to "store => {model=>'schema::user'}".
+                store => 'schema::user',
+            },
+        }
+    );
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                ## Internally coerced to "store => {stash =>'user_rs'}".
+                store => 'user_rs',
+            },
+        }
+    );
+
+=item store => blessed $object isa L<DBIx::Class::ResultSet>
+
+If the value is a blessed object of the correct type (L<DBIx::Class::ResultSet>)
+we just assume your want a 'value' type.
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                ## Internally coerced to "store => {value => $user_resultset}".
+                store => $user_resultset,
+            },
+        }
+    );
+
+=item store => CodeRef
+
+If the value is a subroutine reference, we coerce to the coderef type.
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                ## Internally coerced to "store => { coderef => sub {...} }".
+                store => sub { ... },
+            },
+        }
+    );
+
+=back
+
+Coercions are of course optional; you may wish to skip them to you want better
+self documenting code.
 
 =head2 find_condition
 

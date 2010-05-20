@@ -18,12 +18,12 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key('fk_user_id','fk_role_id');
 
 __PACKAGE__->belongs_to(
-    user => 'Freestock::Schema::Result::User',
+    user => 'TestApp::DBIC::Result::User',
     {'foreign.user_id' => 'self.fk_user_id'},
 );
 
 __PACKAGE__->belongs_to(
-    role => 'Freestock::Schema::Result::Role',
+    role => 'TestApp::DBIC::Result::Role',
     {'foreign.role_id' => 'self.fk_role_id'},
 );
 

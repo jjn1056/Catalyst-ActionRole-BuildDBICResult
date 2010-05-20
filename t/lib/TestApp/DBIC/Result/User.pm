@@ -18,7 +18,7 @@ __PACKAGE__->set_primary_key('user_id');
 __PACKAGE__->add_unique_constraint([ 'email' ]);
 
 __PACKAGE__->has_many(
-    user_roles_rs => 'Freestock::Schema::Result::UserRole',
+    user_roles_rs => 'TestApp::DBIC::Result::UserRole',
     {'foreign.fk_user_id' => 'self.user_id'},
 );
 __PACKAGE__->many_to_many(roles => 'user_roles_rs', 'role');
