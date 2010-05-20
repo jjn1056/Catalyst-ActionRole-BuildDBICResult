@@ -115,6 +115,14 @@ has 'handlers' => (
     coerce => 1,
 );
 
+has 'args_filter' => (
+    is => 'ro',
+    isa => 'RegExp',
+    required => 1,
+    lazy => 1,
+    default => sub { qr/([\w`~!@#\$\%^&*\(\)_\-=+]{1,50})/; },
+);
+
 1;
 
 =head1 NAME
@@ -127,21 +135,22 @@ Assuming "model("DBICSchema::User") is a L<DBIx::Class::ResultSet>, we can
 replace the following code:
 
     sub user :Path :Args(1) {
-        my ($self, $ctx, $photo_id) = @_;
-
-        my $photo;
+        my ($self, $ctx, $user_id) = @_;
+        my ($clean_user_id) = ($user_id=~m/([\w`~!@#$\%^&*\(\)_\-=+]{1,50})/);
+        my $user;
         eval {
-            $photo = $ctx->model('DBICSchema::User')->find({user_id=>$photo_id});
+            $user = $ctx->model('DBICSchema::User')->find({user_id=>$clean_user_id});
             1;
         } or $ctx->log->error("Error finding User: $@");
 
-        if($photo) {
-            ## You Found a Photo, do something useful...
+        if($user) {
+            ## You Found a User, do something useful...
         } else {
-            ## You didn't find a photo (or got an error).
+            ## You didn't find a User (or got an error).
             $ctx->go('/error/not_found');
         }
     }
+
 
 With this code:
 

@@ -29,7 +29,7 @@ is_deeply $store_as_str->store, {model=>'User'},
   'store coerced to model=>User';
 
 ok my $find_cond_as_str = TestApp->controller('Inherit')->action_for('find_cond_as_str'),
-  'coerce store from string'f
+  'coerce store from string';
 
 is_deeply $find_cond_as_str->find_condition, [{constraint_name=>'unique_email'}],
   'find_condition coerced to constraint_name=>unique_email';
