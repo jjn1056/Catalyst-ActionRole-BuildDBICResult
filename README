@@ -178,17 +178,118 @@ ATTRIBUTES
         modifying or restricting a resultset based on the context or other
         logic.
 
-    NOTE: We also automatically coerce a Str value of $str to {model =>
-    $str}, since this is a common case. For example
+    {value = $resultset_object}
+        Assigns a literal value, expected to be a value
+        <DBIx:Class::ResultSet>
 
-        __PACKAGE__->config(
-            action_args => {
-                user => {
-                    ## Internally coerced to "store => {model=>'DBICSchema::User'}".
-                    store => 'DBICSchema::User',
-                },
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        store => { value => $schema->resultset('User') },
+                    },
+                }
+            );
+
+        Useful if you need to directly assign an already prepared resultset
+        as the value for doing 'find's against. You might use this with a
+        more capable inversion of control container, such as
+        Catalyst::Plugin::Bread::Board.
+
+    {coderef => sub { ... }}
+        Similar to the 'value' option above, might be useful if you are
+        doing tricky setup. Should be a subroutine reference that return a
+        DBIx::Class::ResultSet
+
+            sub get_me_a_resultset {
+                my ($action, $controller, $ctx, @args) = @_;
+                ## Some custom instantiation needs
+                return $resultset;
             }
-        );
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        store => { coderef => \&get_me_a_resultset },
+                    },
+                }
+            );
+
+        The coderef gets the following arguments: $action, which is the
+        action object for the Catalyst::Action based instance, $controller,
+        which is the controller object containing the action, $ctx, which is
+        the current context, and an array of arguments which are the
+        arguments passed to the action.
+
+    NOTE: In order to reduce extra boilerplate and needless typing in your
+    configuration, we will automatically try to coerce a String value to one
+    of the listed HashRef values. We coerce depending on the String value
+    given based on the following criteria:
+
+    store => Str
+        We also automatically coerce a Str value of $str to {model => $str},
+        IF $str begins with an uppercased letter or the string contains
+        "::", indicating the value is a namespace target, and to {stash =>
+        $str} otherwise. We believe this is a common case for these types.
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        ## Internally coerced to "store => {model=>'DBICSchema::User'}".
+                        store => 'DBICSchema::User',
+                    },
+                }
+            );
+
+
+            ## Perl practices indicate you should Title Case object namespaces, but
+            ## in case you have some of these we try to detect and do the right thing.
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        ## Internally coerced to "store => {model=>'schema::user'}".
+                        store => 'schema::user',
+                    },
+                }
+            );
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        ## Internally coerced to "store => {stash =>'user_rs'}".
+                        store => 'user_rs',
+                    },
+                }
+            );
+
+    store => blessed $object isa DBIx::Class::ResultSet
+        If the value is a blessed object of the correct type
+        (DBIx::Class::ResultSet) we just assume your want a 'value' type.
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        ## Internally coerced to "store => {value => $user_resultset}".
+                        store => $user_resultset,
+                    },
+                }
+            );
+
+    store => CodeRef
+        If the value is a subroutine reference, we coerce to the coderef
+        type.
+
+            __PACKAGE__->config(
+                action_args => {
+                    user => {
+                        ## Internally coerced to "store => { coderef => sub {...} }".
+                        store => sub { ... },
+                    },
+                }
+            );
+
+    Coercions are of course optional; you may wish to skip them to you want
+    better self documenting code.
 
   find_condition
     This should a way for a given resultset (defined in "store" to find a
@@ -533,6 +634,6 @@ POD ERRORS
     Hey! The above document had some coding errors, which are explained
     below:
 
-    Around line 642:
+    Around line 747:
         Unterminated L<...> sequence
 
