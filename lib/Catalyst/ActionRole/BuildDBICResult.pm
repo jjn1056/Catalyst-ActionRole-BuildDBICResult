@@ -680,7 +680,9 @@ has only a single column.
 
 Also note that in the case of multi field primary keys or unique constraints,
 we attempt to match against the field order as defined in your call to
-L<DBIx::Class::ResultSource/primary_columns> or L<DBIx::Class::ResultSource/add_unique_constraint>.
+L<DBIx::Class::ResultSource/primary_columns> or
+L<DBIx::Class::ResultSource/add_unique_constraint>.
+
 If you need to to specify the mapping of L<Catalyst> arguments to unique
 constraint fields, please see 'match_order' options.
     
