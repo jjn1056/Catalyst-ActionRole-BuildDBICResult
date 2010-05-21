@@ -117,7 +117,7 @@ has 'handlers' => (
 
 has 'args_filter' => (
     is => 'ro',
-    isa => 'RegExp',
+    isa => 'RegexpRef',
     required => 1,
     lazy => 1,
     default => sub { qr/([\w`~!@#\$\%^&*\(\)_\-=+]{1,50})/; },
@@ -603,6 +603,24 @@ can call "$ctx->forward" or "$ctx->detach" on.  We coerce from a string value
 into a hashref where 'forward' is the key (unless 'detach_exceptions' is true).
 If youd actually set the key value, that value is used no matter what the state
 of L</detach_exceptions>.
+
+=head2 args_filter
+
+Before sending any incoming arguments from the action to your model's find
+condition, we filter each argument through a regular expression.  Although
+L<DBIx::Class> is pretty smart with arguments (there are no inline variable
+interpolation in the generated SQL, everything uses bind variables) arguments
+do come from client browers and as such cannot be trusted.  By default the
+regular expression used to filter arguments is:
+
+     qr/([\w`~!@#\$\%^&*\(\)_\-=+]{1,96})/
+
+Basically this is a pretty forgiving filter.  The primary limit is on the
+length of the incoming argument, which will be cut off at 96 characters.  If
+you wish for something more restrictive, you can write your own.  This filter
+should allow nearly all the most standard unique keys, such as integer, uuids,
+email addresses, etc, while placing sometype of limit on the size and permitted
+characters so that this doesn't become an attack vector on your database.
 
 =head1 METHODS
 

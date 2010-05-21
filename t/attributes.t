@@ -21,6 +21,12 @@ is_deeply $defaults->find_condition, [{constraint_name=>'primary'}],
 
 ok !$defaults->auto_stash, 'default auto_stash';
 ok !$defaults->detach_exceptions, 'default detach_exceptions';
+ok my $regexp = $defaults->args_filter, 'Got the filter';
+
+ok "abc"=~m/$regexp/, 'good arg';
+ok 'jjn1056@yahoo.com'=~m/$regexp/, 'good arg';
+ok "aaaa-aaaaa-aaaaa"=~m/$regexp/, 'good arg';
+is ",.<a href='IAMEVIL'>evil</a>"=~m/$regexp/, 'good arg';
 
 ok my $store_as_str = Test::Catalyst::ActionRole::BuildDBICResult->new(store=>'User'),
   'coerce store from string';
@@ -49,6 +55,7 @@ is_deeply $find_cond_as_cond2->find_condition, [{columns=>['id']}],
 eval {
     Test::Catalyst::ActionRole::BuildDBICResult->new(find_condition=>{columns=>{a=>'id'}});
 };
+
 
 ok $@, 'got an error from columns=>HashRef as expected';
 
