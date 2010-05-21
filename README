@@ -6,18 +6,18 @@ SYNOPSIS
     replace the following code:
 
         sub user :Path :Args(1) {
-            my ($self, $ctx, $photo_id) = @_;
-
-            my $photo;
+            my ($self, $ctx, $user_id) = @_;
+            my ($clean_user_id) = ($user_id=~m/([\w`~!@#$\%^&*\(\)_\-=+]{1,50})/);
+            my $user;
             eval {
-                $photo = $ctx->model('DBICSchema::User')->find({user_id=>$photo_id});
+                $user = $ctx->model('DBICSchema::User')->find({user_id=>$clean_user_id});
                 1;
             } or $ctx->log->error("Error finding User: $@");
 
-            if($photo) {
-                ## You Found a Photo, do something useful...
+            if($user) {
+                ## You Found a User, do something useful...
             } else {
-                ## You didn't find a photo (or got an error).
+                ## You didn't find a User (or got an error).
                 $ctx->go('/error/not_found');
             }
         }
@@ -468,13 +468,51 @@ ATTRIBUTES
     value, that value is used no matter what the state of
     "detach_exceptions".
 
+  check_args_pattern
+    Before sending any incoming arguments from the action to your model's
+    find condition, we test each argument through a regular expression.
+    Although DBIx::Class is pretty smart with arguments (there are no inline
+    variable interpolation in the generated SQL, everything uses bind
+    variables) arguments do come from client browers and as such cannot be
+    trusted. By default the regular expression used to test arguments is:
+
+        qr/^[\w\.,`~!@#$\%^&*\(\)_\-=+]{1,96}$/
+
+    Basically this is a pretty forgiving filter, designed in mind with the
+    types of primary keys or other unique data we've seen. We had the
+    following types in mind:
+
+        Integer - 21412343
+        UUID - 995cd3c4-62a6-11df-a00c-7d9949bad02a 
+        Email - "johnn@shutterstock.com"
+        Phone Numbers - (212)387-1111 | 011-86-9106-26059
+        USA Social Security (although you know not to use this right?) - 005-82-1111
+
+    The primary limit is on the length of the incoming argument, which will
+    be cut off at 96 characters. This large size is to allow for the email
+    pattern. If you wish for something more restrictive, you can write your
+    own. This filter should allow nearly all the most standard unique keys,
+    such as integer, uuids, email addresses, etc, while placing sometype of
+    limit on the size and permitted characters so that this doesn't become
+    an attack vector on your database.
+
+    If the incoming argument fails to match the regular expression, we
+    immediately delegate to the ERROR handler. Since we don't perform any
+    cleaning on the arguments, some care should be taken on your side to
+    properly exscape and untaint any args used in error messages, in your
+    logs, etc.
+
 METHODS
     This role defines the follow methods which subclasses may wish to
     override.
 
+  _check_arg ($arg)
+    tests an incoming $args against the check_args_pattern described above.
+    Returns a boolean. We consider this method of internal value only.
+
 FIND CONDITION DETAILS
-    This section adds details regarding what a find condition is on provides
-    some examples.
+    This section adds details regarding what a find condition is ond
+    provides some examples.
 
   defining a find condition
     A find condition is the definition of something unique we can match and
@@ -501,9 +539,10 @@ FIND CONDITION DETAILS
     Also note that in the case of multi field primary keys or unique
     constraints, we attempt to match against the field order as defined in
     your call to "primary_columns" in DBIx::Class::ResultSource or
-    "add_unique_constraint" in DBIx::Class::ResultSource. If you need to to
-    specify the mapping of Catalyst arguments to unique constraint fields,
-    please see 'match_order' options.
+    "add_unique_constraint" in DBIx::Class::ResultSource.
+
+    If you need to to specify the mapping of Catalyst arguments to unique
+    constraint fields, please see 'match_order' options.
 
   example find conditions
     Find where one arg is mapped to a single field primary key (default
@@ -634,6 +673,6 @@ POD ERRORS
     Hey! The above document had some coding errors, which are explained
     below:
 
-    Around line 747:
+    Around line 802:
         Unterminated L<...> sequence
 
