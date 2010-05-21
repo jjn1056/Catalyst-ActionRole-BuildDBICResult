@@ -115,13 +115,19 @@ has 'handlers' => (
     coerce => 1,
 );
 
-has 'args_filter' => (
+has 'check_args_pattern' => (
     is => 'ro',
     isa => 'RegexpRef',
     required => 1,
     lazy => 1,
-    default => sub { qr/([\w`~!@#\$\%^&*\(\)_\-=+]{1,50})/; },
+    default => sub { qr/^[\w\.,`~!@#\$\%^&*\(\)_\-=+]{1,96}$/ },
 );
+
+sub _check_arg {
+    my ($self, $arg) = @_;
+    my $regexp = $self->check_args_pattern;
+    return $arg =~ m/$regexp/;
+}
 
 1;
 
@@ -604,31 +610,51 @@ into a hashref where 'forward' is the key (unless 'detach_exceptions' is true).
 If youd actually set the key value, that value is used no matter what the state
 of L</detach_exceptions>.
 
-=head2 args_filter
+=head2 check_args_pattern 
 
 Before sending any incoming arguments from the action to your model's find
-condition, we filter each argument through a regular expression.  Although
+condition, we test each argument through a regular expression.  Although
 L<DBIx::Class> is pretty smart with arguments (there are no inline variable
 interpolation in the generated SQL, everything uses bind variables) arguments
 do come from client browers and as such cannot be trusted.  By default the
-regular expression used to filter arguments is:
+regular expression used to test arguments is:
 
-     qr/([\w`~!@#\$\%^&*\(\)_\-=+]{1,96})/
+    qr/^[\w\.,`~!@#$\%^&*\(\)_\-=+]{1,96}$/ 
 
-Basically this is a pretty forgiving filter.  The primary limit is on the
-length of the incoming argument, which will be cut off at 96 characters.  If
+Basically this is a pretty forgiving filter, designed in mind with the types of
+primary keys or other unique data we've seen.  We had the following types in mind:
+
+    Integer - 21412343
+    UUID - 995cd3c4-62a6-11df-a00c-7d9949bad02a 
+    Email - "johnn@shutterstock.com"
+    Phone Numbers - (212)387-1111 | 011-86-9106-26059
+    USA Social Security (although you know not to use this right?) - 005-82-1111
+
+
+The primary limit is on the length of the incoming argument, which will be cut 
+off at 96 characters.  This large size is to allow for the email pattern.  If
 you wish for something more restrictive, you can write your own.  This filter
 should allow nearly all the most standard unique keys, such as integer, uuids,
 email addresses, etc, while placing sometype of limit on the size and permitted
 characters so that this doesn't become an attack vector on your database.
 
+If the incoming argument fails to match the regular expression, we immediately
+delegate to the ERROR handler.  Since we don't perform any cleaning on the 
+arguments, some care should be taken on your side to properly exscape and
+untaint any args used in error messages, in your logs, etc.
+
 =head1 METHODS
 
 This role defines the follow methods which subclasses may wish to override.
 
+=head2 _check_arg ($arg)
+
+tests an incoming $args against the L<check_args_pattern> described above.  
+Returns a boolean.  We consider this method of internal value only.
+
 =head1 FIND CONDITION DETAILS
 
-This section adds details regarding what a find condition is on provides some
+This section adds details regarding what a find condition is ond provides some
 examples.
 
 =head2 defining a find condition
