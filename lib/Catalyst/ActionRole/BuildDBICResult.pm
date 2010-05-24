@@ -1,7 +1,7 @@
 package Catalyst::ActionRole::BuildDBICResult;
 
 BEGIN {
-  $Catalyst::ActionRole::BuildDBICResult::VERSION = '0.01';
+  $Catalyst::Does::BuildDBICResult::VERSION = '0.01';
 }
 
 use Moose::Role;
@@ -15,7 +15,7 @@ subtype 'StoreType',
         my ($store_type, @extra) = keys %$_;
         my $return;
         unless(@extra) {
-            if($store_type eq any(qw/model method stash value coderef/)) {
+            if($store_type eq any(qw/model method stash value code/)) {
                 $return = 1;
             } else {
                 $return = 0;
@@ -133,113 +133,76 @@ sub _check_arg {
 
 =head1 NAME
 
-Catalyst::ActionRole::BuildDBICResult
+Catalyst::Does::BuildDBICResult
 
 =head1 SYNOPSIS
 
-Assuming "model("DBICSchema::User") is a L<DBIx::Class::ResultSet>, we can
-replace the following code:
+The following is example usage for this role.
 
-    sub user :Path :Args(1) {
-        my ($self, $ctx, $user_id) = @_;
-        my ($clean_user_id) = ($user_id=~m/([\w`~!@#$\%^&*\(\)_\-=+]{1,50})/);
-        my $user;
-        eval {
-            $user = $ctx->model('DBICSchema::User')->find({user_id=>$clean_user_id});
-            1;
-        } or $ctx->log->error("Error finding User: $@");
+    package MyApp::Controller::MyController;
 
-        if($user) {
-            ## You Found a User, do something useful...
-        } else {
-            ## You didn't find a User (or got an error).
-            $ctx->go('/error/not_found');
-        }
-    }
+    use Moose;
+    use namespace::autoclean;
 
-
-With this code:
-
+    BEGIN { extends 'Catalyst::Controller::Does' }
+ 
     __PACKAGE__->config(
         action_args => {
-            user => { store => 'Schema::User' },
+            user => { store => 'DBICSchema::User' },
         }
     );
 
     sub user :Path :Args(1) 
-        :ActionRole('FindsDBICResult')
+        :Does('FindsDBICResult')
     {
-        my ($self, $ctx, $arg) = @_;
-        ## This is always executed, and is done so first.
+        my ($self, $ctx, $id) = @_;
+        ## This is always executed, and is done so first. Afterwards, forward
+        ## to one of three action handlers defined below, depending on if $id
+        ## is 'findable' in 'DBICSchema::User'.
     }
 
     sub  user_FOUND :Action {
-        my ($self, $ctx, $user) = @_;
+        my ($self, $ctx, $user, $id) = @_;
     }
 
     sub user_NOTFOUND :Action {
-        my ($self, $ctx, $arg) = @_;
-         $ctx->go('/error/not_found')
+        my ($self, $ctx, $id) = @_;
+         $ctx->go('/error/not_found'); 
     }
 
+    ## If *_ERROR is not defined, rethrow any errors as a L<Catalyst::Exception>
     sub user_ERROR :Action {
-        my ($self, $ctx, $error, $arg) = @_;
-        $ctx->log->error("Error finding User: $error")
-    }
-
-Another example this time with Chained actions:
-
-    __PACKAGE__->config(
-        action_args => {
-            user => {
-                store => { stash_key => 'user_rs' },
-                find_condition => { columns => ['email'] },
-                auto_stash => 1,
-                handlers => {
-                    notfound => { detach => '/error/notfound' },
-                },
-        }
-    );
-
-    sub root :Chained :CaptureArgs(0) {
-        my ($self, $ctx) = @_;
-        $ctx->stash(user_rs=>$ctx->model('DBICSchema::User'));
-    }
-
-    sub user :Chained('root') :CaptureArgs(1) 
-        :ActionRole('FindsDBICResult') {}
-
-    sub details :Chained('user') :Args(0) 
-    {
-        use Data::Dumper;
-        my ($self, $ctx, $arg) = @_;
-        my $user_details = $ctx->stash->{user};
-        ## Do something with the details, probably delagate to a View, etc.
+        my ($self, $ctx, $error, $id = @_;
+        $ctx->log->error("Error finding User with $id: $error")
     }
 
 Please see the test cases for more detailed examples.
 
 =head1 DESCRIPTION
 
+This is a <Moose::Role> intending to enhance any L<Catalyst::Action>, typically
+applied in your L<Catalyst::Controller::ActionRole> based controllers, although
+it can also be consumed as a role on your custom actions.
+
 Mapping incoming arguments to a particular result in a L<DBIx::Class> based model
 is a pretty common development case.  Making choices based on the return of that
-result is also quite common.  The goal of this action role is to reduce the
-amount of boilerplate code you have to write to get these common cases completed.  
-
-Additionally, by canonicalizing how to handle these common cases, we hope to
-increase code comprehension familiarity as well as leverage the many eyes of 
-the community to solve bugs and create a solid solution suitable for reuse.
+result is also quite common.  Additionally, properly 'untainting' incoming
+arguments and catching exceptions are equally important parts of handling this
+development case correctly. The goal of this action role is to reduce the amount
+of boilerplate code you have to write to get these common cases completed. It 
+is intented to encapsulate all the boilerplate code required to perform this
+task correctly and safely.
 
 Basically we encapsulate the logic: "For a given DBIC resultset, does the find
 condition return a valid result given the incoming arguments?  Depending on the
-result, follow a chain of assigned handlers until the result is handled."
+result, delegate to an assigned handlers until the result is handled."
 
-A find condition basically maps incoming action arguments to a DBIC unique
+A find condition maps incoming action arguments to a DBIC unique
 constraint.  This condition resolves to one of three results: "FOUND", 
 "NOTFOUND", "ERROR".  Result condition "FOUND" returns when the find condition
 finds a single row against the defined ResultSet, NOTFOUND when the find
 condition fails and ERROR when trying to resolve the find condition results
-in a catchable thrown error.
+in a catchable error.
 
 Based on the result condition we automatically call an action whose name 
 matches a default template, as in the SYNOPSIS above.  You may also override
@@ -247,7 +210,8 @@ this default template via configuration.  This makes it easy to configure
 common results, like NOTFOUND, to be handled by a common action.
 
 Be default an ERROR result also calls a NOTFOUND (after calling the ERROR
-handler), since both conditions logically match.
+handler), since both conditions logically match.  However ERROR is delegated to
+first, so if you go/detach in that action, the NOTFOUND will not be called.
 
 When dispatching a result condition, such as ERROR, FOUND, etc., to a handler,
 we follow a hierachy of defaults, followed by any handlers added in configuration.
@@ -258,9 +222,182 @@ related to accessing the your DBIC model.  If you need more we recommend looking
 at L<Catalyst::Controller::DBIC::API> for general API access needs or for a
 more complete CRUD setup check out L<CatalystX::CRUD> or L<Catalyst::Plugin::AutoCRUD>.
 
+=head1 EXAMPLES
+
+Assuming "model("DBICSchema::User") is a L<DBIx::Class::ResultSet>, we can
+replace the following code:
+
+    package MyApp::Controller::MyController;
+
+    use Moose;
+    use namespace::autoclean;
+
+    BEGIN { extends 'Catalyst::Controller' }
+
+    sub user :Path :Args(1) {
+        my ($self, $ctx, $user_id) = @_;
+        if($user_id =~ m/$acceptable_arg_pattern_regexp/) {
+            my $user;
+            eval {
+                $user = $ctx->model('DBICSchema::User')
+                  ->find({user_id=>$user_id});
+                1;
+            } or $ctx->forward('/error/server_error');
+
+            if($user) {
+                ## You Found a User, do something useful...
+            } else {
+                ## You didn't find a User (or got an error).
+                $ctx->go('/error/not_found');
+            }
+        } else {
+            ## Incoming argument does not conform to acceptable pattern
+            $ctx->go('/error/not_found');
+        }
+    }
+
+With something like this code:
+
+    package MyApp::Controller::MyController;
+
+    use Moose;
+    use namespace::autoclean;
+
+    BEGIN { extends 'Catalyst::Controller::Does' }
+ 
+   __PACKAGE__->config(
+        action_args => {
+            user => { store => 'Schema::User' },
+        }
+    );
+
+    sub user :Path :Args(1) 
+        :Does('FindsDBICResult')
+    {
+        my ($self, $ctx, $arg) = @_;
+    }
+
+    sub  user_FOUND :Action {
+        my ($self, $ctx, $user, $arg) = @_;
+    }
+
+    sub user_NOTFOUND :Action {
+        my ($self, $ctx, $arg) = @_;
+         $ctx->go('/error/not_found')
+    }
+
+    sub user_ERROR :Action {
+        my ($self, $ctx, $error, $arg) = @_;
+        $ctx->log->error("Error finding User: $error");
+    }
+
+Or, if you don't need to handle any code for your exceptional conditions (such
+as NOTFOUND or ERROR) you can move more to the configuration:
+
+    package MyApp::Controller::MyController;
+
+    use Moose;
+    use namespace::autoclean;
+
+    BEGIN { extends 'Catalyst::Controller::Does' }
+ 
+   __PACKAGE__->config(
+        action_args => {
+            user => {
+                store => 'Schema::User',
+                handlers => {
+                    notfound => { go => '/error/notfound' },
+                    error => { go => '/error/server_error' },
+                },
+             },
+        },
+    );
+
+    sub user :Path :Args(1) 
+        :Does('FindsDBICResult')
+    {
+        my ($self, $ctx, $arg) = @_;
+    }
+
+    sub  user_FOUND :Action {
+        my ($self, $ctx, $user, $arg) = @_;
+    }
+
+Another example this time with Chained actions and a more complex DBIC result
+find condition, as well as custom exceptin handlers:
+
+    __PACKAGE__->config(
+        action_args => {
+            user => {
+                store => { stash => 'user_rs' },
+                find_condition => { columns => ['email'] },
+                auto_stash => 1,
+                handlers => {
+                    notfound => { detach => '/error/notfound' },
+                    error => { go => '/error/server_error' },
+                },
+            },
+        },
+    );
+
+    sub root :Chained :CaptureArgs(0) {
+        my ($self, $ctx) = @_;
+        $ctx->stash(user_rs=>$ctx->model('DBICSchema::User'));
+    }
+
+    sub user :Chained('root') :CaptureArgs(1) 
+        :Does('FindsDBICResult') {}
+
+    sub details :Chained('user') :Args(0) 
+    {
+        my ($self, $ctx, $arg) = @_;
+        my $user_details = $ctx->stash->{user};
+        ## Do something with the details, probably delagate to a View, etc.
+    }
+
+This would replace something like the following custom code:
+
+    sub root :Chained :CaptureArgs(0) {
+        my ($self, $ctx) = @_;
+        $ctx->stash(user_rs=>$ctx->model('DBICSchema::User'));
+    }
+
+    sub user :Chained('root') :CaptureArgs(1) {
+        my ($self, $ctx, $email) = @_;
+        my $user_rs = $ctx->stash->{user_rs};
+        if($user_id =~ m/$acceptable_arg_pattern_regexp/) {
+            my $user;
+            eval {
+                $user = $user_rs->find({email=>$email});
+                1;
+            } or $ctx->go('/error/server_error');
+
+            if($user) {
+                $ctx->stash(user => $user);
+            } else {
+                ## You didn't find a User (or got an error).
+                $ctx->detach('/error/not_found');
+            }
+        } else {
+            ## Incoming argument does not conform to acceptable pattern
+            $ctx->detach('/error/not_found');
+        }
+    } 
+
+    sub details :Chained('user') :Args(0) 
+    {
+        my ($self, $ctx, $arg) = @_;
+        my $user_details = $ctx->stash->{user};
+        ## Do something with the details, probably delagate to a View, etc.
+    }
+
+NOTE: Variable and class names above choosen for documentation readability
+and should not be considered best practice recomendations. For example, I would
+not name my L<Catalyst::Model::DBIC::Schema> based model 'DBICSchema'.
+ 
 =head1 ATTRIBUTES
 
-This role defines the following attributes
+This role defines the following attributes.
 
 =head2 store
 
@@ -268,11 +405,15 @@ This defines the method by which we get a L<DBIx::Class::ResultSet> suitable
 for applying a L</find_condition>.  The canonical form is a HashRef where the
 keys / values conform to the following template.
 
+    { model||method||stash||value||code => Str||Code }
+
+Details follow:
+
 =over 4
 
 =item {model => '$dbic_model_name'}
 
-Store comes from a L<Catalyst::Model::DBIC::Schema > based model.
+Store comes from a L<Catalyst::Model::DBIC::Schema> based model.
 
     __PACKAGE__->config(
         action_args => {
@@ -283,7 +424,6 @@ Store comes from a L<Catalyst::Model::DBIC::Schema > based model.
     );
 
 This retrieves a L<DBIx::Class::ResultSet> via $ctx->model($dbic_model_name).
-This is the default common case.
 
 =item {method => '$get_resultset'}
 
@@ -297,17 +437,30 @@ Calls a method on the containing controller.
         }
     );
 
+    sub user :Action :Does('BuildDBICResult') :Args(1) {
+        my ($self, $ctx, $arg) = @_;
+    }
+
+    sub get_user_resultset {
+        my ($self, $action, @args) = @_;
+        ...
+        return $resultset;
+    }
+
 The containing controller must define this method and it must return a proper
 L<DBIx::Class::ResultSet> or an exception is thrown.
 
-=item {stash_key => '$name_of_stash_key' }
+Method is passed the action instance and the arguments passed into the action
+from the dispatcher.
+
+=item {stash => '$name_of_stash_key' }
 
 Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
 
     __PACKAGE__->config(
         action_args => {
             user => {
-                store => { stash_key => 'user_rs' },
+                store => { stash => 'user_rs' },
             },
         }
     );
@@ -315,7 +468,7 @@ Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
 This is useful if you are descending a chain of actions and modifying or
 restricting a resultset based on the context or other logic.
 
-=item {value = $resultset_object}
+=item {value => $resultset_object}
 
 Assigns a literal value, expected to be a value L<DBIx:Class::ResultSet>
 
@@ -328,10 +481,10 @@ Assigns a literal value, expected to be a value L<DBIx:Class::ResultSet>
     );
 
 Useful if you need to directly assign an already prepared resultset as the 
-value for doing 'find's against.  You might use this with a more capable
+value for doing $rs->find against.  You might use this with a more capable
 inversion of control container, such as L<Catalyst::Plugin::Bread::Board>.
 
-=item {coderef => sub { ... }}
+=item {code => sub { ... }}
 
 Similar to the 'value' option above, might be useful if you are doing tricky
 setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
@@ -345,7 +498,7 @@ setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
     __PACKAGE__->config(
         action_args => {
             user => {
-                store => { coderef => \&get_me_a_resultset },
+                store => { code => \&get_me_a_resultset },
             },
         }
     );
@@ -461,7 +614,7 @@ defined in L<DBIx::Class::ResultSource> either with 'set_primary_key' or with
         }
     );
 
-    sub category :Path :Args(1) :ActionRole('FindsDBICResult') {
+    sub category :Path :Args(1) :Does('FindsDBICResult') {
         my ($self, $ctx, $category_arg) = @_;
     }
 
@@ -597,9 +750,9 @@ to the end of the lookup list for a given result condition.  This is a HashRef
 that accepts one or more of the following keys: found, notfound, error. Example:
 
     handlers => {
-        found => { forward|detach => $found_action_name },
-        notfound => { forward|detach => $notfound_action_name },
-        error => { forward|detach => $error_action_name },
+        found => { forward|detach|go|visit => $found_action_name },
+        notfound => { forward|detach|go|visit => $notfound_action_name },
+        error => { forward|detach|go|visit => $error_action_name },
     }
 
 Globalizing the 'error' and 'notfound' action handlers is probably the most 
