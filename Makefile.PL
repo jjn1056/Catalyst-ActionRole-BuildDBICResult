@@ -5,16 +5,17 @@ use warnings;
 
 my @core_requires = (
     'Moose' => '1.03',
-    'Catalyst' => '5.80023',
+    'Catalyst::Runtime' => '5.80024',
     'Catalyst::Controller::ActionRole' => '0',
     'Perl6::Junction' => '1.40000',
 );
 
 my @test_build_requires = (
     'Test::More' => '0.94',
-    'Catalyst::Test' => '0',
+    'DBIx::Class' => '0.08121',
+    'Catalyst::Runtime' => '5.80024 ',
     'Catalyst::Controller::ActionRole' => '0',
-
+    'Catalyst::Model::DBIC::Schema' => '0.41',
 );
 
 use inc::Module::Install;

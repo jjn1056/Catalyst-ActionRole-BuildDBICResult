@@ -1,6 +1,9 @@
 package # Hide from PAUSE
   TestApp::DBIC::Result::UserRole;
 
+use strict;
+use warnings;
+
 use base 'TestApp::DBIC::Result';
 
 __PACKAGE__->table('user_role');
@@ -14,9 +17,7 @@ __PACKAGE__->add_columns(
         size => '8', 
     },
 );
-
 __PACKAGE__->set_primary_key('fk_user_id','fk_role_id');
-
 __PACKAGE__->belongs_to(
     user => 'TestApp::DBIC::Result::User',
     {'foreign.user_id' => 'self.fk_user_id'},

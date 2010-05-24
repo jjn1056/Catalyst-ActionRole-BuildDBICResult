@@ -1,6 +1,9 @@
 package # Hide from PAUSE
   TestApp::DBIC::ResultSet;
 
+use strict;
+use warnings;
+
 use base 'DBIx::Class::ResultSet';
 
 sub hri_dump {
