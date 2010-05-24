@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 use Test::More 0.89;
+use HTTP::Request::Common qw/GET POST DELETE/;
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
@@ -46,8 +47,6 @@ is_deeply [sort map {$_->name} $jay->roles->all] ,[qw(member)],
 is_deeply [sort map {$_->name} $vanessa->roles->all] ,[qw(admin)],
   'roles for vanessa';
 
-done_testing;
-
 sub get_ordered_users {
     (shift)->
         resultset('User')->
@@ -61,4 +60,38 @@ sub get_ordered_roles {
         search({}, {order_by => {-asc=>'role_id'}})->
         all;
 }
+
+use Catalyst::Test 'TestApp';
+
+ok my $users = request(GET '/dbic/users')->content,
+  'Got store content';
+
+is_deeply [split ',', $users], [
+    'john@shutterstock.com',
+    'james@shutterstock.com',
+    'jay@shutterstock.com',
+    'vanessa@shutterstock.com',
+], 'Got expected emails';
+
+ok my $roles = request(GET '/dbic/roles')->content,
+  'Got store content';
+
+is_deeply [split ',', $roles], [
+    'member',
+    'admin',
+], 'Got expected emails';
+
+is request(GET '/dbic/user_roles/100')->content, 'member,admin',
+  'right roles';
+
+is request(GET '/dbic/user_roles/101')->content, 'member,admin',
+  'right roles';
+
+is request(GET '/dbic/user_roles/102')->content, 'member',
+  'right roles';
+
+is request(GET '/dbic/user_roles/103')->content, 'admin',
+  'right roles';
+
+done_testing;
 

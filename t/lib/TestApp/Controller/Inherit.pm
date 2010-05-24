@@ -49,6 +49,4 @@ sub find_cond_as_cond2
   :Path('find_cond_as_cond2') 
   :ActionClass('+TestApp::Action::BuildDBICResult') {}
 
-__PACKAGE__->meta->make_immutable;
-
 1;
