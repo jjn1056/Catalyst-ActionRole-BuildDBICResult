@@ -24,6 +24,7 @@ sub generate_ddl {
     my $sql_dir = $class->path_to('etc','sql');
     my $version = $schema->schema_version();
     $schema->create_ddl_dir( ['SQLite'], $version, $sql_dir );
+    return 1;
 }
 
 sub installdb {

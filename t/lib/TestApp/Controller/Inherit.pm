@@ -26,6 +26,9 @@ __PACKAGE__->config(
                 columns => ['id'],
             },
         },
+        'user_default' => {
+            store => 'Schema::User',
+        },
     },
 );
 
@@ -48,5 +51,29 @@ sub find_cond_as_cond
 sub find_cond_as_cond2
   :Path('find_cond_as_cond2') 
   :ActionClass('+TestApp::Action::BuildDBICResult') {}
+
+
+sub user_default
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('user_default')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'user_default';
+}
+
+    sub user_default_FOUND {
+        my ($self, $ctx, $user, $id) = @_;
+        push @{$ctx->stash->{res}}, $user->email;
+
+    }
+
+sub end :Private {
+    my ($self, $ctx) = @_;
+    if(my $res = $ctx->stash->{res}) {
+        $ctx->res->body(join(',', @$res));
+    }
+}
+
 
 1;

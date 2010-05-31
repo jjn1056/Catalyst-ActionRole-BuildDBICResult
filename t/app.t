@@ -6,8 +6,6 @@ use HTTP::Request::Common qw/GET POST DELETE/;
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-use Catalyst::Test 'TestApp';
-
 ok my $defaults = TestApp->controller('Inherit')->action_for('defaults'),
   'all defaults';
 
@@ -46,18 +44,9 @@ ok my $find_cond_as_cond2 = TestApp->controller('Inherit')->action_for('find_con
 is_deeply $find_cond_as_cond2->find_condition, [{columns=>['id']}],
   'find_condition coerced to columns=>id';
 
+use Catalyst::Test 'TestApp';
+
+warn request(GET '/inherit/user_default/100')->content;
 
 done_testing;
-
-__END__
-
-
-ok my $defaults = request(GET '/inherit/defaults')->content,
-  'Got store content';
-
-
-use Data::Dump 'dump';
-warn dump $defaults;
-
-warn dump TestApp->controller('Inherit')->action_for('defaults')->store;
 

@@ -8,6 +8,7 @@ use Moose::Role;
 use namespace::autoclean;
 use Perl6::Junction qw(any all);
 use Moose::Util::TypeConstraints;
+use Catalyst::Exception;
 
 subtype 'StoreType',
     as 'HashRef',
@@ -129,6 +130,61 @@ sub _check_arg {
     return $arg =~ m/$regexp/;
 }
 
+## refactor please! What a messssssss!
+sub prepare_resultset {
+    my ($self, $controller, $ctx) = @_;
+    my @args = @{$ctx->req->args};
+    my ($store_type, $store) = each %{$self->store};
+
+    my $resultset;
+    if($store_type eq 'model') {
+        $resultset = $ctx->model($store);
+    } elsif($store_type eq 'method') {
+        if(my $code = $controller->can($store)) {
+            $resultset = $controller->$code($self,$ctx, @args);
+        } else {
+            Catalyst::Exception->throw(message=>"$store is not a method on $controller");
+        }
+    } elsif($store_type eq 'stash') {
+        $resultset = $ctx->stash->{$store};
+    } elsif($store_type eq 'value') {
+        $resultset = $store;
+    } elsif($store_type eq 'code') {
+        ## $action, $controller, $ctx, @args)
+        $resultset = $self->$store($controller, $ctx. @args);
+    } else {
+        Catalyst::Exception->throw(
+            message=>"$store_type is not recognized.  Please review your 'store' setting for $self"
+        );
+    }
+
+    if($resultset && ref $resultset && $resultset->isa('DBIx::Class::ResultSet')) {
+        return $resultset;
+    } else {
+        Catalyst::Exception->throw(
+            message=>"Your defined Store ($store_type failed to return a proper ResultSet"
+        );        
+    }
+
+}
+
+around 'dispatch' => sub  {
+
+    my $orig = shift @_;
+    my $self = shift @_;
+    my $ctx = shift @_;
+    my $app = ref $ctx ? ref $ctx : $ctx;
+    my $controller = $ctx->component($self->class);
+
+    my $found_handler = $self->name .'_FOUND';
+
+    my ($code); 
+    if($code = $controller->action_for($found_handler)) {
+    }
+
+    return $self->$orig($ctx, @_);
+};
+
 1;
 
 =head1 NAME
@@ -144,7 +200,7 @@ The following is example usage for this role.
     use Moose;
     use namespace::autoclean;
 
-    BEGIN { extends 'Catalyst::Controller::Does' }
+    BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
     __PACKAGE__->config(
         action_args => {

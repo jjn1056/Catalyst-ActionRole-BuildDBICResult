@@ -8,6 +8,7 @@ use_ok 'Catalyst::ActionRole::BuildDBICResult';
     package Test::Catalyst::ActionRole::BuildDBICResult;
     use Moose;
     with 'Catalyst::ActionRole::BuildDBICResult';
+    sub dispatch {}
 }
 
 ok my $defaults = Test::Catalyst::ActionRole::BuildDBICResult->new(),
