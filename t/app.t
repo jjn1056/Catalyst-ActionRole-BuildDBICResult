@@ -6,6 +6,11 @@ use HTTP::Request::Common qw/GET POST DELETE/;
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
+use TestApp;
+
+ok(TestApp->installdb, 'Setup Database');
+ok(TestApp->deploy_dbfixtures, 'Fixtures Deployed');
+
 ok my $defaults = TestApp->controller('Inherit')->action_for('defaults'),
   'all defaults';
 

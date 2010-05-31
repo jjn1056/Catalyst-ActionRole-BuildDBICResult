@@ -162,13 +162,13 @@ sub prepare_resultset {
         return $resultset;
     } else {
         Catalyst::Exception->throw(
-            message=>"Your defined Store ($store_type failed to return a proper ResultSet"
+            message=>"Your defined Store ($store_type failed to return a proper ResultSet",
         );        
     }
 
 }
 
-around 'dispatch' => sub  {
+override 'dispatch' => sub  {
 
     my $orig = shift @_;
     my $self = shift @_;
@@ -176,13 +176,55 @@ around 'dispatch' => sub  {
     my $app = ref $ctx ? ref $ctx : $ctx;
     my $controller = $ctx->component($self->class);
 
-    my $found_handler = $self->name .'_FOUND';
+    my $resultset = $self->prepare_resultset($controller,$ctx);
+use Data::Dump 'dump';
+warn $resultset;
+warn dump $self->find_condition;
+    
+    foreach my $find_cond( @{$self->find_condition}) {
+        my @col_names = ();
+        if(my $constraint_name = $find_cond->{constraint_name}) {
+            @col_names = $resultset->result_source->unique_constraint_columns($constraint_name);
+        } else {
+            @col_names = @{$find_cond->{columns}};
+        }
 
-    my ($code); 
-    if($code = $controller->action_for($found_handler)) {
+        unless(@col_names == @_) {
+            Catalyst::Exception->throw(
+                message=>"Not enough arguments for the defined find condition",
+            ); 
+        }
+
+        my @args = @_;
+        my %find_condition = map {$_=> shift(@args)} @col_names;    
+
+        my $handler = $self->name;
+        if(my $row = $resultset->find(\%find_condition)) {
+            $handler .= '_FOUND';
+        } else {
+            $handler .= '_NOTFOUND';
+        }
+
+        my ($code); 
+        if($code = $controller->action_for($handler)) {
+            $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+            return $ctx->forward( $code,  $ctx->req->args );
+        } else {
+            die "We need to handle this";
+        }
+
+        # right now we just try them all in turn, but this should short curcuit
+
+    local $self->{code} = $code;
+    local $self->{reverse} = $handler;
+
+    $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+
     }
 
-    return $self->$orig($ctx, @_);
+
+
+
 };
 
 1;
