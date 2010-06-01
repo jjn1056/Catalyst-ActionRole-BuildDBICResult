@@ -168,9 +168,9 @@ sub prepare_resultset {
 
 }
 
-override 'dispatch' => sub  {
+around 'dispatch' => sub  {
 
-   # my $orig = shift @_;
+    my $orig = shift @_;
     my $self = shift @_;
     my $ctx = shift @_;
     my $app = ref $ctx ? ref $ctx : $ctx;
@@ -208,7 +208,8 @@ override 'dispatch' => sub  {
 
         my ($code); 
         if($code = $controller->action_for($handler)) {
-            $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+            #$ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+            $self->$orig($ctx,@_);
             return $ctx->forward( $code, [$row, @{$ctx->req->args}] );
         } else {
             die "We need to handle this. no $handler";
