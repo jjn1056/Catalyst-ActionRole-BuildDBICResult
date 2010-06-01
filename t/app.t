@@ -51,7 +51,11 @@ is_deeply $find_cond_as_cond2->find_condition, [{columns=>['id']}],
 
 use Catalyst::Test 'TestApp';
 
-warn request(GET '/inherit/user_default/100')->content;
+ok my $user100 = request(GET '/inherit/user_default/100')->content,
+  'got user 100';
+
+is $user100, 'user_default,john@shutterstock.com',
+  'got expected values for user 100';
 
 done_testing;
 

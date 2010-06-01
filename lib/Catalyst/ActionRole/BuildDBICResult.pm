@@ -170,36 +170,37 @@ sub prepare_resultset {
 
 override 'dispatch' => sub  {
 
-    my $orig = shift @_;
+   # my $orig = shift @_;
     my $self = shift @_;
     my $ctx = shift @_;
     my $app = ref $ctx ? ref $ctx : $ctx;
     my $controller = $ctx->component($self->class);
 
     my $resultset = $self->prepare_resultset($controller,$ctx);
-use Data::Dump 'dump';
-warn $resultset;
-warn dump $self->find_condition;
-    
-    foreach my $find_cond( @{$self->find_condition}) {
-        my @col_names = ();
+    my @conditions = @{$self->find_condition};
+        
+    for my $find_cond(@conditions) {
+        my @columns = ();
         if(my $constraint_name = $find_cond->{constraint_name}) {
-            @col_names = $resultset->result_source->unique_constraint_columns($constraint_name);
+            @columns = $resultset->result_source->unique_constraint_columns($constraint_name);
         } else {
-            @col_names = @{$find_cond->{columns}};
+            @columns = @{$find_cond->{columns}};
         }
 
-        unless(@col_names == @_) {
+        my @args = @{$ctx->req->args};
+        unless(@columns == @args) {
+            my $args = join ',', @args;
+            my $columns = join ',', @columns;
             Catalyst::Exception->throw(
-                message=>"Not enough arguments for the defined find condition",
+                message=>"Not enough arguments ($args) for the defined find condition columns: $columns",
             ); 
         }
 
-        my @args = @_;
-        my %find_condition = map {$_=> shift(@args)} @col_names;    
+        my %find_condition = map {$_=> shift(@args)} @columns;    
 
         my $handler = $self->name;
-        if(my $row = $resultset->find(\%find_condition)) {
+        my $row;
+        if($row = $resultset->find(\%find_condition)) {
             $handler .= '_FOUND';
         } else {
             $handler .= '_NOTFOUND';
@@ -208,17 +209,19 @@ warn dump $self->find_condition;
         my ($code); 
         if($code = $controller->action_for($handler)) {
             $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
-            return $ctx->forward( $code,  $ctx->req->args );
+            return $ctx->forward( $code, [$row, @{$ctx->req->args}] );
         } else {
-            die "We need to handle this";
+            die "We need to handle this. no $handler";
         }
 
         # right now we just try them all in turn, but this should short curcuit
 
-    local $self->{code} = $code;
-    local $self->{reverse} = $handler;
-
-    $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+        if($row) {
+            local $self->{code} = $code;
+            local $self->{reverse} = $handler;
+            $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
+            @conditions = ();
+        }
 
     }
 

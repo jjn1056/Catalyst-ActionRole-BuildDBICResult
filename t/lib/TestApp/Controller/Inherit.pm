@@ -62,10 +62,9 @@ sub user_default
     push @{$ctx->stash->{res}}, 'user_default';
 }
 
-    sub user_default_FOUND {
+    sub user_default_FOUND :ACTION {
         my ($self, $ctx, $user, $id) = @_;
         push @{$ctx->stash->{res}}, $user->email;
-
     }
 
 sub end :Private {
