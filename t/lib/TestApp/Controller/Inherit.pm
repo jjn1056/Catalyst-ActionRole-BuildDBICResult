@@ -28,6 +28,7 @@ __PACKAGE__->config(
         },
         'user_default' => {
             store => 'Schema::User',
+            find_condition => ['primary',{columns=>['email']}],
         },
     },
 );

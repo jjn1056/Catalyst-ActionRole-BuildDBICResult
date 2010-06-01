@@ -57,5 +57,11 @@ ok my $user100 = request(GET '/inherit/user_default/100')->content,
 is $user100, 'user_default,john@shutterstock.com',
   'got expected values for user 100';
 
+ok my $user_email = request(GET '/inherit/user_default/john@shutterstock.com')->content,
+  'got user from email';
+
+is $user_email, 'user_default,john@shutterstock.com',
+  'got expected values for user email';
+
 done_testing;
 

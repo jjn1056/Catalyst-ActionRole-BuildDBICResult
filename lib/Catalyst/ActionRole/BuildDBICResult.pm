@@ -40,7 +40,7 @@ has 'store' => (
     default => sub { +{method=>'get_model'} },
 );
 
-subtype 'FindCondition',
+my $find_condition_tc = subtype 'FindCondition',
     as 'HashRef',
     where {
         my @keys = keys(%$_);
@@ -60,6 +60,10 @@ subtype 'FindCondition',
         $return;
     };
 
+coerce 'FindCondition',
+    from 'Str',
+    via { +{constraint_name=>$_} };
+
 subtype 'FindConditions',
     as 'ArrayRef[FindCondition]';
 
@@ -67,7 +71,11 @@ coerce 'FindConditions',
     from 'FindCondition',
     via { +[$_] },
     from 'Str',
-    via { +[{constraint_name=>$_}] };
+    via { +[{constraint_name=>$_}] },
+    from 'ArrayRef',
+    via {
+        [map { $find_condition_tc->coerce($_) } @$_];
+    };
 
 has 'find_condition' => (
     isa => 'FindConditions',
@@ -134,27 +142,27 @@ sub _check_arg {
 sub prepare_resultset {
     my ($self, $controller, $ctx) = @_;
     my @args = @{$ctx->req->args};
-    my ($store_type, $store) = each %{$self->store};
+    my ($store_type, $store_value) = %{$self->store};
 
     my $resultset;
     if($store_type eq 'model') {
-        $resultset = $ctx->model($store);
+        $resultset = $ctx->model($store_value);
     } elsif($store_type eq 'method') {
-        if(my $code = $controller->can($store)) {
+        if(my $code = $controller->can($store_value)) {
             $resultset = $controller->$code($self,$ctx, @args);
         } else {
-            Catalyst::Exception->throw(message=>"$store is not a method on $controller");
+            Catalyst::Exception->throw(message=>"$store_value is not a method on $controller");
         }
     } elsif($store_type eq 'stash') {
-        $resultset = $ctx->stash->{$store};
+        $resultset = $ctx->stash->{$store_value};
     } elsif($store_type eq 'value') {
-        $resultset = $store;
+        $resultset = $store_value;
     } elsif($store_type eq 'code') {
         ## $action, $controller, $ctx, @args)
-        $resultset = $self->$store($controller, $ctx. @args);
+        $resultset = $self->$store_value($controller, $ctx. @args);
     } else {
         Catalyst::Exception->throw(
-            message=>"$store_type is not recognized.  Please review your 'store' setting for $self"
+            message=>"'$store_type' is not recognized.  Please review your 'store' setting ($store_value) for $self"
         );
     }
 
@@ -162,10 +170,9 @@ sub prepare_resultset {
         return $resultset;
     } else {
         Catalyst::Exception->throw(
-            message=>"Your defined Store ($store_type failed to return a proper ResultSet",
+            message=>"Your defined Store ($store_type) failed to return a proper ResultSet",
         );        
     }
-
 }
 
 around 'dispatch' => sub  {
@@ -202,29 +209,33 @@ around 'dispatch' => sub  {
         my $row;
         if($row = $resultset->find(\%find_condition)) {
             $handler .= '_FOUND';
+            my ($code); 
+            if($code = $controller->action_for($handler)) {
+                $self->$orig($ctx,@_);
+                return $ctx->forward( $code, [$row, @{$ctx->req->args}] );
+            } else {
+                die "We need to handle this. no $handler";
+            }
+
+            
+                local $self->{code} = $code;
+                local $self->{reverse} = $handler;
+                $self->$orig($ctx,@_);
+                @conditions = ();
+                return;
+
+
         } else {
-            $handler .= '_NOTFOUND';
+            my $columns = join ',', @columns;
+            $ctx->log->debug("Can't find with $columns");
         }
 
-        my ($code); 
-        if($code = $controller->action_for($handler)) {
-            #$ctx->execute( $self->class, $self, @{ $ctx->req->args } );
-            $self->$orig($ctx,@_);
-            return $ctx->forward( $code, [$row, @{$ctx->req->args}] );
-        } else {
-            die "We need to handle this. no $handler";
-        }
-
-        # right now we just try them all in turn, but this should short curcuit
-
-        if($row) {
-            local $self->{code} = $code;
-            local $self->{reverse} = $handler;
-            $ctx->execute( $self->class, $self, @{ $ctx->req->args } );
-            @conditions = ();
-        }
-
+  
     }
+
+    ## If we get here, that means none of th fine conditions found anything
+
+    
 
 
 
