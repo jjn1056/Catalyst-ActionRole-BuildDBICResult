@@ -8,7 +8,7 @@ use_ok 'Catalyst::ActionRole::BuildDBICResult';
     package Test::Catalyst::ActionRole::BuildDBICResult;
     use Moose;
     with 'Catalyst::ActionRole::BuildDBICResult';
-    sub name { 'name'}
+    sub name {'name'}
     sub dispatch {}
 }
 
