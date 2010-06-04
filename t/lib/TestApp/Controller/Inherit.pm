@@ -63,17 +63,17 @@ sub user_default
     push @{$ctx->stash->{res}}, 'user_default';
 }
 
-    sub user_default_FOUND :ACTION {
+    sub user_default_FOUND :Action {
         my ($self, $ctx, $user, $id) = @_;
         push @{$ctx->stash->{res}}, $user->email;
     }
 
-    sub user_default_NOTFOUND :ACTION {
+    sub user_default_NOTFOUND :Action {
         my ($self, $ctx, $user, $id) = @_;
         push @{$ctx->stash->{res}}, 'notfound';
     }
 
-    sub user_default_ERROR :ACTION {
+    sub user_default_ERROR :Action {
         my ($self, $ctx, $err, $id) = @_;
         ($err) = ($err=~m/^(.+?)\!/); 
         push @{$ctx->stash->{res}}, 'error', $err;

@@ -11,6 +11,8 @@ use Moose::Util::TypeConstraints;
 use Catalyst::Exception;
 use Try::Tiny qw(try catch);
 
+requires 'name', 'dispatch';
+
 subtype 'StoreType',
     as 'HashRef',
     where {
