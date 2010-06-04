@@ -28,7 +28,7 @@ __PACKAGE__->config(
         },
         'user_default' => {
             store => 'Schema::User',
-            find_condition => ['primary',{columns=>['email']}],
+            find_condition => [ 'primary', ['email'] ],
         },
     },
 );
@@ -66,6 +66,17 @@ sub user_default
     sub user_default_FOUND :ACTION {
         my ($self, $ctx, $user, $id) = @_;
         push @{$ctx->stash->{res}}, $user->email;
+    }
+
+    sub user_default_NOTFOUND :ACTION {
+        my ($self, $ctx, $user, $id) = @_;
+        push @{$ctx->stash->{res}}, 'notfound';
+    }
+
+    sub user_default_ERROR :ACTION {
+        my ($self, $ctx, $err, $id) = @_;
+        ($err) = ($err=~m/^(.+?)\!/); 
+        push @{$ctx->stash->{res}}, 'error', $err;
     }
 
 sub end :Private {

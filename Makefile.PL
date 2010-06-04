@@ -8,6 +8,7 @@ my @core_requires = (
     'Catalyst::Runtime' => '5.80024',
     'Catalyst::Controller::ActionRole' => '0',
     'Perl6::Junction' => '1.40000',
+    'Try::Tiny' => '0',
 );
 
 my @test_build_requires = (

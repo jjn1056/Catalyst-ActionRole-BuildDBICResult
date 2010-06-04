@@ -23,7 +23,6 @@ is_deeply $defaults->find_condition, [{constraint_name=>'primary'}],
   'default find_condition';
 
 ok !$defaults->auto_stash, 'default auto_stash';
-ok !$defaults->detach_exceptions, 'default detach_exceptions';
 
 ok my $store_as_str = TestApp->controller('Inherit')->action_for('store_as_str'),
   'coerce store from string';
@@ -62,6 +61,19 @@ ok my $user_email = request(GET '/inherit/user_default/john@shutterstock.com')->
 
 is $user_email, 'user_default,john@shutterstock.com',
   'got expected values for user email';
+
+
+ok my $user_notfound = request(GET '/inherit/user_default/xxxx.com')->content,
+  'got user from email';
+
+is $user_notfound, 'user_default,notfound',
+  'got expected values for user not found';
+
+ok my $user_error = request(GET '/inherit/user_default/error@error.com')->content,
+  'generated an error';
+
+is $user_error, 'user_default,error,BOO,notfound',
+  'got expected values for user not found';
 
 done_testing;
 

@@ -22,6 +22,7 @@ is_deeply [map {$_->email} @users], [
     'james@shutterstock.com',
     'jay@shutterstock.com',
     'vanessa@shutterstock.com',
+    'error@error.com',
 ], 'Got expected emails';
 
 ok my @roles = &get_ordered_roles($schema),
@@ -71,6 +72,7 @@ is_deeply [split ',', $users], [
     'james@shutterstock.com',
     'jay@shutterstock.com',
     'vanessa@shutterstock.com',
+    'error@error.com',
 ], 'Got expected emails';
 
 ok my $roles = request(GET '/dbic/roles')->content,

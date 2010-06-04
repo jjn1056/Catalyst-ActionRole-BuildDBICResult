@@ -18,15 +18,6 @@ __PACKAGE__->config(
 
 __PACKAGE__->setup;
 
-sub generate_ddl {
-    my $class = shift @_;
-    my $schema = $class->model('Schema')->schema;
-    my $sql_dir = $class->path_to('etc','sql');
-    my $version = $schema->schema_version();
-    $schema->create_ddl_dir( ['SQLite'], $version, $sql_dir );
-    return 1;
-}
-
 sub installdb {
     my $class = shift @_;
     my $schema = $class->model('Schema')->schema;
@@ -46,6 +37,7 @@ sub deploy_dbfixtures {
         [101, 'james@shutterstock.com'],
         [102, 'jay@shutterstock.com'],
         [103, 'vanessa@shutterstock.com'],
+        [104, 'error@error.com'],
     ]);
     $schema->populate('Role' => [
         [qw(role_id name)],
@@ -62,6 +54,18 @@ sub deploy_dbfixtures {
         [103, 201],
     ]);
 
+    return 1;
+}
+
+## The following is used for authors if you need to change the testing database
+## and then rebuild the setup ddl file.
+
+sub generate_ddl {
+    my $class = shift @_;
+    my $schema = $class->model('Schema')->schema;
+    my $sql_dir = $class->path_to('etc','sql');
+    my $version = $schema->schema_version();
+    $schema->create_ddl_dir( ['SQLite'], $version, $sql_dir );
     return 1;
 }
 

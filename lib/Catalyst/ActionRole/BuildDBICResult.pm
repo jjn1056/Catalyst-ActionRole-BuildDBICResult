@@ -9,6 +9,7 @@ use namespace::autoclean;
 use Perl6::Junction qw(any all);
 use Moose::Util::TypeConstraints;
 use Catalyst::Exception;
+use Try::Tiny qw(try catch);
 
 subtype 'StoreType',
     as 'HashRef',
@@ -62,7 +63,9 @@ my $find_condition_tc = subtype 'FindCondition',
 
 coerce 'FindCondition',
     from 'Str',
-    via { +{constraint_name=>$_} };
+    via { +{constraint_name=>$_} },
+    from 'ArrayRef',
+    via { +{columns=>$_} };
 
 subtype 'FindConditions',
     as 'ArrayRef[FindCondition]';
@@ -95,7 +98,7 @@ subtype 'HandlerActionInfo',
         my @keys = keys(%$_);
         if(
             ($#keys == 0) and
-            (all(@keys) eq any(qw/forward detach/))
+            (all(@keys) eq any(qw/forward detach visit go/))
         ) {
             1;
         } else {
@@ -123,20 +126,6 @@ has 'handlers' => (
     isa => 'Handlers',
     coerce => 1,
 );
-
-has 'check_args_pattern' => (
-    is => 'ro',
-    isa => 'RegexpRef',
-    required => 1,
-    lazy => 1,
-    default => sub { qr/^[\w\.,`~!@#\$\%^&*\(\)_\-=+]{1,96}$/ },
-);
-
-sub _check_arg {
-    my ($self, $arg) = @_;
-    my $regexp = $self->check_args_pattern;
-    return $arg =~ m/$regexp/;
-}
 
 ## refactor please! What a messssssss!
 sub prepare_resultset {
@@ -175,71 +164,95 @@ sub prepare_resultset {
     }
 }
 
-around 'dispatch' => sub  {
+sub columns_from_find_condition {
+    my ($self, $resultset, $find_condition) = @_;
+    my @columns;
+    if(my $constraint_name = $find_condition->{constraint_name}) {
+        @columns = $resultset->result_source->unique_constraint_columns($constraint_name);
+    } else {
+        @columns = @{$find_condition->{columns}};
+        unless($resultset->result_source->name_unique_constraint(\@columns)) {
+            my $columns = join ',', @columns;
+            my $name = $resultset->result_source->name;
+            Catalyst::Exception->throw(
+                message=>"Fields [$columns] don't match any constraints in resultsource: $name",
+            );           
+        }
+    }
+    return @columns;
+}
 
+sub result_from_columns {
+    my ($self, $resultset, $args, $columns) = @_;
+    my %find_condition = map {$_ => shift(@$args)} @$columns;
+    return $resultset->find(\%find_condition);
+}
+
+around 'dispatch' => sub  {
     my $orig = shift @_;
     my $self = shift @_;
     my $ctx = shift @_;
-    my $app = ref $ctx ? ref $ctx : $ctx;
-    my $controller = $ctx->component($self->class);
 
+    my ($row, $err);
+    my $controller = $ctx->component($self->class);
     my $resultset = $self->prepare_resultset($controller,$ctx);
-    my @conditions = @{$self->find_condition};
-        
-    for my $find_cond(@conditions) {
-        my @columns = ();
-        if(my $constraint_name = $find_cond->{constraint_name}) {
-            @columns = $resultset->result_source->unique_constraint_columns($constraint_name);
-        } else {
-            @columns = @{$find_cond->{columns}};
-        }
+ 
+   for my $find_condition( @{$self->find_condition}) {
 
         my @args = @{$ctx->req->args};
+        my @columns = $self->columns_from_find_condition($resultset, $find_condition);
+
         unless(@columns == @args) {
-            my $args = join ',', @args;
-            my $columns = join ',', @columns;
-            Catalyst::Exception->throw(
-                message=>"Not enough arguments ($args) for the defined find condition columns: $columns",
-            ); 
+            $ctx->error(
+                sprintf "Arguments %s don't match the given find condition %s",
+                join(',', @args),
+                join(',', @columns),
+            );
         }
 
-        my %find_condition = map {$_=> shift(@args)} @columns;    
-
-        my $handler = $self->name;
-        my $row;
-        if($row = $resultset->find(\%find_condition)) {
-            $handler .= '_FOUND';
-            my ($code); 
-            if($code = $controller->action_for($handler)) {
-                $self->$orig($ctx,@_);
-                return $ctx->forward( $code, [$row, @{$ctx->req->args}] );
-            } else {
-                die "We need to handle this. no $handler";
-            }
-
-            
-                local $self->{code} = $code;
-                local $self->{reverse} = $handler;
-                $self->$orig($ctx,@_);
-                @conditions = ();
-                return;
-
-
+        try {
+            $row = $self->result_from_columns($resultset, \@args, \@columns);
+        } catch {
+            $err = $_;
+        };
+        
+        if($row) {
+            $ctx->log->debug("Found row with ". join(',', @columns));
+            last;
         } else {
-            my $columns = join ',', @columns;
-            $ctx->log->debug("Can't find with $columns");
+            $ctx->log->debug("Can't find with ". join(',', @columns));
         }
 
-  
+        last if $err;
     }
 
-    ## If we get here, that means none of th fine conditions found anything
+    my $base_name = $self->name;
+    my $return_action_result = $self->$orig($ctx, @_);
 
-    
+    if($err) {
+        if(my $error_code = $controller->action_for($base_name .'_ERROR')) {
+             $ctx->forward( $error_code, [$err, @{$ctx->req->args}] );
+        } else {
+            $ctx->log->debug("No error action, logging exception.");
+            $ctx->error($err);
+        }
+    } 
 
+    if($row) {
+        if(my $found_code = $controller->action_for($base_name .'_FOUND')) {
+            $return_action_result = $ctx->forward( $found_code, [$row, @{$ctx->req->args}] );
+        } else {
+            $ctx->log->debug("No found action, skipping.");
+        }
+    } else {
+        if(my $notfound_code = $controller->action_for($base_name .'_NOTFOUND')) {
+            $return_action_result =  $ctx->forward( $notfound_code, $ctx->req->args );
+        } else {
+            $ctx->log->debug("No notfound action, skipping.");
+        }
+    }
 
-
-
+    return $return_action_result;
 };
 
 1;
@@ -269,9 +282,10 @@ The following is example usage for this role.
         :Does('FindsDBICResult')
     {
         my ($self, $ctx, $id) = @_;
-        ## This is always executed, and is done so first. Afterwards, forward
-        ## to one of three action handlers defined below, depending on if $id
-        ## is 'findable' in 'DBICSchema::User'.
+        ## This is always executed, and is done so first, unless the attempt to
+        ## find the argument results in an exception, in which case the rescue
+        ## handler is called first.  Afterwards, forward to either *_FOUND or 
+        ## *_NOTFOUND actions and continue processing.
     }
 
     sub  user_FOUND :Action {
