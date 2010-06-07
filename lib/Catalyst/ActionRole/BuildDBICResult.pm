@@ -131,7 +131,7 @@ has 'handlers' => (
     predicate => 'has_handlers',
 );
 
-## refactor please! What a messssssss!
+## TODO: refactor please! What a messssssss!
 sub prepare_resultset {
     my ($self, $controller, $ctx) = @_;
     my @args = @{$ctx->req->args};
@@ -291,10 +291,7 @@ The following is example usage for this role.
         :Does('FindsDBICResult')
     {
         my ($self, $ctx, $id) = @_;
-        ## This is always executed, and is done so first, unless the attempt to
-        ## find the argument results in an exception, in which case the rescue
-        ## handler is called first.  Afterwards, forward to either *_FOUND or 
-        ## *_NOTFOUND actions and continue processing.
+        ## This is always executed, and is done so first. 
     }
 
     sub  user_FOUND :Action {
@@ -309,7 +306,8 @@ The following is example usage for this role.
     ## If *_ERROR is not defined, rethrow any errors as a L<Catalyst::Exception>
     sub user_ERROR :Action {
         my ($self, $ctx, $error, $id = @_;
-        $ctx->log->error("Error finding User with $id: $error")
+        $ctx->log->error("Error finding User with $id: $error");
+        $ctx->detach; ## stop processing request;
     }
 
 Please see the test cases for more detailed examples.
@@ -318,16 +316,16 @@ Please see the test cases for more detailed examples.
 
 This is a <Moose::Role> intending to enhance any L<Catalyst::Action>, typically
 applied in your L<Catalyst::Controller::ActionRole> based controllers, although
-it can also be consumed as a role on your custom actions.
+it can also be consumed as a role on your custom action classes (such as any 
+class which extends L<Catalyst::Action>.)
 
 Mapping incoming arguments to a particular result in a L<DBIx::Class> based model
 is a pretty common development case.  Making choices based on the return of that
-result is also quite common.  Additionally, properly 'untainting' incoming
-arguments and catching exceptions are equally important parts of handling this
-development case correctly. The goal of this action role is to reduce the amount
-of boilerplate code you have to write to get these common cases completed. It 
-is intented to encapsulate all the boilerplate code required to perform this
-task correctly and safely.
+result is also quite common.  For example, if you can 'find' a record matching 
+the args, you may wish to redirect to a not found error page.  The goal of this 
+action role is to reduce the amountof boilerplate code you have to write to get
+these common cases completed. It is intented to encapsulate all the boilerplate
+code required to perform this task correctly and safely.
 
 Basically we encapsulate the logic: "For a given DBIC resultset, does the find
 condition return a valid result given the incoming arguments?  Depending on the
@@ -372,22 +370,17 @@ replace the following code:
 
     sub user :Path :Args(1) {
         my ($self, $ctx, $user_id) = @_;
-        if($user_id =~ m/$acceptable_arg_pattern_regexp/) {
-            my $user;
-            eval {
-                $user = $ctx->model('DBICSchema::User')
-                  ->find({user_id=>$user_id});
-                1;
-            } or $ctx->forward('/error/server_error');
+        my $user;
+        eval {
+            $user = $ctx->model('DBICSchema::User')
+              ->find({user_id=>$user_id});
+            1;
+        } or $ctx->forward('/error/server_error');
 
-            if($user) {
-                ## You Found a User, do something useful...
-            } else {
-                ## You didn't find a User (or got an error).
-                $ctx->go('/error/not_found');
-            }
+        if($user) {
+            ## You Found a User, do something useful...
         } else {
-            ## Incoming argument does not conform to acceptable pattern
+            ## You didn't find a User (or got an error).
             $ctx->go('/error/not_found');
         }
     }
@@ -435,7 +428,7 @@ as NOTFOUND or ERROR) you can move more to the configuration:
     use Moose;
     use namespace::autoclean;
 
-    BEGIN { extends 'Catalyst::Controller::Does' }
+    BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
    __PACKAGE__->config(
         action_args => {
@@ -501,24 +494,19 @@ This would replace something like the following custom code:
     sub user :Chained('root') :CaptureArgs(1) {
         my ($self, $ctx, $email) = @_;
         my $user_rs = $ctx->stash->{user_rs};
-        if($user_id =~ m/$acceptable_arg_pattern_regexp/) {
-            my $user;
-            eval {
-                $user = $user_rs->find({email=>$email});
-                1;
-            } or $ctx->go('/error/server_error');
+        my $user;
+        eval {
+            $user = $user_rs->find({email=>$email});
+            1;
+        } or $ctx->go('/error/server_error');
 
-            if($user) {
-                $ctx->stash(user => $user);
-            } else {
-                ## You didn't find a User (or got an error).
-                $ctx->detach('/error/not_found');
-            }
+        if($user) {
+            $ctx->stash(user => $user);
         } else {
-            ## Incoming argument does not conform to acceptable pattern
+            ## You didn't find a User (or got an error).
             $ctx->detach('/error/not_found');
         }
-    } 
+     } 
 
     sub details :Chained('user') :Args(0) 
     {
@@ -655,7 +643,7 @@ the following criteria:
 
 =item store => Str
 
-We also automatically coerce a Str value of $str to {model => $str}, IF $str
+We automatically coerce a Str value of $str to {model => $str}, IF $str
 begins with an uppercased letter or the string contains "::", indicating the
 value is a namespace target, and to {stash => $str} otherwise.  We believe
 this is a common case for these types.
@@ -899,47 +887,9 @@ into a hashref where 'forward' is the key (unless 'detach_exceptions' is true).
 If youd actually set the key value, that value is used no matter what the state
 of L</detach_exceptions>.
 
-=head2 check_args_pattern 
-
-Before sending any incoming arguments from the action to your model's find
-condition, we test each argument through a regular expression.  Although
-L<DBIx::Class> is pretty smart with arguments (there are no inline variable
-interpolation in the generated SQL, everything uses bind variables) arguments
-do come from client browers and as such cannot be trusted.  By default the
-regular expression used to test arguments is:
-
-    qr/^[\w\.,`~!@#$\%^&*\(\)_\-=+]{1,96}$/ 
-
-Basically this is a pretty forgiving filter, designed in mind with the types of
-primary keys or other unique data we've seen.  We had the following types in mind:
-
-    Integer - 21412343
-    UUID - 995cd3c4-62a6-11df-a00c-7d9949bad02a 
-    Email - "johnn@shutterstock.com"
-    Phone Numbers - (212)387-1111 | 011-86-9106-26059
-    USA Social Security (although you know not to use this right?) - 005-82-1111
-
-
-The primary limit is on the length of the incoming argument, which will be cut 
-off at 96 characters.  This large size is to allow for the email pattern.  If
-you wish for something more restrictive, you can write your own.  This filter
-should allow nearly all the most standard unique keys, such as integer, uuids,
-email addresses, etc, while placing sometype of limit on the size and permitted
-characters so that this doesn't become an attack vector on your database.
-
-If the incoming argument fails to match the regular expression, we immediately
-delegate to the ERROR handler.  Since we don't perform any cleaning on the 
-arguments, some care should be taken on your side to properly exscape and
-untaint any args used in error messages, in your logs, etc.
-
 =head1 METHODS
 
 This role defines the follow methods which subclasses may wish to override.
-
-=head2 _check_arg ($arg)
-
-tests an incoming $args against the L<check_args_pattern> described above.  
-Returns a boolean.  We consider this method of internal value only.
 
 =head1 FIND CONDITION DETAILS
 

@@ -106,13 +106,12 @@ sub end :Private {
     my ($self, $ctx) = @_;
     if(my $user = $ctx->stash->{user}) {
         my $email = $user->email;
-         push @{$ctx->stash->{res}}, $email;
+        push @{$ctx->stash->{res}}, $email;
     }
 
     if(my $res = $ctx->stash->{res}) {
         $ctx->res->body(join(',', @$res));
     }
-
 }
 
 
