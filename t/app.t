@@ -75,5 +75,21 @@ ok my $user_error = request(GET '/inherit/user_default/error@error.com')->conten
 is $user_error, 'user_default,error,BOO,notfound',
   'got expected values for user not found';
 
+
+ok my $user_detach_error = request(GET '/inherit/user_detach_error/100')->content,
+  'checking auto stash';
+
+is $user_detach_error, 'user_detach_error,john@shutterstock.com',
+  'got expected values for user_detach_error not found';
+
+ok my $user_detach_notfound = request(GET '/inherit/user_detach_error/xxxxxx')->content,
+  'checking auto stash';
+
+is $user_detach_notfound, 'user_detach_error,local_notfound',
+  'got expected values for user_detach_notfound not found';
+
+
+warn $user_detach_notfound;
+
 done_testing;
 

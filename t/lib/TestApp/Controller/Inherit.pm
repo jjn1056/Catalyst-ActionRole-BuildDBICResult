@@ -30,6 +30,15 @@ __PACKAGE__->config(
             store => 'Schema::User',
             find_condition => [ 'primary', ['email'] ],
         },
+        'user_detach_error' => {
+            store => 'Schema::User',
+            find_condition => [ 'primary', ['email'] ],
+            auto_stash => 'user',
+            handlers => {
+                error => {detach => 'local_error'},
+                notfound => {detach => 'local_notfound'},
+            },
+        },
     },
 );
 
@@ -79,11 +88,31 @@ sub user_default
         push @{$ctx->stash->{res}}, 'error', $err;
     }
 
+sub user_detach_error
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('user_detach_error')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'user_detach_error';
+}
+
+    sub local_notfound :Private {
+        my ($self, $ctx) = @_;
+        push @{$ctx->stash->{res}}, 'local_notfound';
+    }
+
 sub end :Private {
     my ($self, $ctx) = @_;
+    if(my $user = $ctx->stash->{user}) {
+        my $email = $user->email;
+         push @{$ctx->stash->{res}}, $email;
+    }
+
     if(my $res = $ctx->stash->{res}) {
         $ctx->res->body(join(',', @$res));
     }
+
 }
 
 

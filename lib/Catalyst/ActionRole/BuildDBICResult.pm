@@ -92,7 +92,6 @@ has 'find_condition' => (
 );
 
 has 'auto_stash' => (is=>'ro', required=>1, lazy=>1, default=>0);
-has 'detach_exceptions' => (is=>'ro', required=>1, lazy=>1, default=>0);
 
 subtype 'HandlerActionInfo',
     as 'HashRef',
@@ -106,18 +105,20 @@ subtype 'HandlerActionInfo',
         } else {
             0;
         }
-    };
+    },
+    message { "Disallowed Key in: ". join(',', keys(%$_)) };
 
 subtype 'Handlers',
     as 'HashRef[HandlerActionInfo]',
     where {
-        my @keys = %$_;
+        my @keys = keys(%$_);
         if(all(@keys) eq any(qw/found notfound error/)) {
             1;
         } else {
             0;
         }
-    };
+    },
+    message { "Disallowed key in: ". join(',',keys(%$_)) };
 
 coerce 'Handlers',
     from 'HashRef[Str]',
@@ -127,6 +128,7 @@ has 'handlers' => (
     is => 'ro',
     isa => 'Handlers',
     coerce => 1,
+    predicate => 'has_handlers',
 );
 
 ## refactor please! What a messssssss!
@@ -191,25 +193,23 @@ sub result_from_columns {
 }
 
 around 'dispatch' => sub  {
+
     my $orig = shift @_;
     my $self = shift @_;
     my $ctx = shift @_;
-
-    my ($row, $err);
+ 
     my $controller = $ctx->component($self->class);
     my $resultset = $self->prepare_resultset($controller,$ctx);
  
-   for my $find_condition( @{$self->find_condition}) {
+    my ($row, $err);
+    for my $find_condition( @{$self->find_condition}) {
 
         my @args = @{$ctx->req->args};
         my @columns = $self->columns_from_find_condition($resultset, $find_condition);
 
         unless(@columns == @args) {
-            $ctx->error(
-                sprintf "Arguments %s don't match the given find condition %s",
-                join(',', @args),
-                join(',', @columns),
-            );
+            my $err = sprintf "Arguments %s don't match the given find condition %s", join(',',@args), join(',',@columns);
+            $ctx->error($err);
         }
 
         try {
@@ -217,44 +217,51 @@ around 'dispatch' => sub  {
         } catch {
             $err = $_;
         };
-        
-        if($row) {
-            $ctx->log->debug("Found row with ". join(',', @columns));
-            last;
-        } else {
-            $ctx->log->debug("Can't find with ". join(',', @columns));
-        }
 
-        last if $err;
+        last if($row or $err);
     }
 
     my $base_name = $self->name;
-    my $return_action_result = $self->$orig($ctx, @_);
+
+    if($row && $self->auto_stash) {
+        my $key = $self->auto_stash;
+        $key = $key=~m/^[\w]{2,}/ ? $key : $base_name;
+        $ctx->stash($key => $row);
+    }
+
+    my $final_action_result = $self->$orig($ctx, @_);
 
     if($err) {
-        if(my $error_code = $controller->action_for($base_name .'_ERROR')) {
-             $ctx->forward( $error_code, [$err, @{$ctx->req->args}] );
+        my ($type, $target) = ('forward', $controller->action_for($base_name .'_ERROR'));
+        if($self->has_handlers && $self->handlers->{error}) {
+            ($type, $target) = %{$self->handlers->{error}};
+        }
+        if($target) {
+             $ctx->$type( $target, [$err, @{$ctx->req->args}] );
         } else {
-            $ctx->log->debug("No error action, logging exception.");
             $ctx->error($err);
         }
     } 
 
     if($row) {
-        if(my $found_code = $controller->action_for($base_name .'_FOUND')) {
-            $return_action_result = $ctx->forward( $found_code, [$row, @{$ctx->req->args}] );
-        } else {
-            $ctx->log->debug("No found action, skipping.");
+        my ($type, $target) = ('forward', $controller->action_for($base_name .'_FOUND'));
+        if($self->has_handlers && $self->handlers->{found}) {
+            ($type, $target) = %{$self->handlers->{found}};
         }
+        if($target) {
+            $final_action_result = $ctx->$type( $target, [$row, @{$ctx->req->args}] );
+        } 
     } else {
-        if(my $notfound_code = $controller->action_for($base_name .'_NOTFOUND')) {
-            $return_action_result =  $ctx->forward( $notfound_code, $ctx->req->args );
-        } else {
-            $ctx->log->debug("No notfound action, skipping.");
+        my ($type, $target) = ('forward', $controller->action_for($base_name .'_NOTFOUND'));
+        if($self->has_handlers && $self->handlers->{notfound}) {
+            ($type, $target) = %{$self->handlers->{notfound}};
+        }
+        if($target) {
+            $final_action_result =  $ctx->$type( $target, $ctx->req->args );
         }
     }
 
-    return $return_action_result;
+    return $final_action_result;
 };
 
 1;
