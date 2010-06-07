@@ -142,29 +142,24 @@ sub prepare_resultset {
         $resultset = $ctx->model($store_value);
     } elsif($store_type eq 'method') {
         if(my $code = $controller->can($store_value)) {
-            $resultset = $controller->$code($self,$ctx, @args);
+            $resultset = $controller->$code();
         } else {
-            Catalyst::Exception->throw(message=>"$store_value is not a method on $controller");
+            $ctx->error("$store_value is not a method on $controller");
         }
     } elsif($store_type eq 'stash') {
         $resultset = $ctx->stash->{$store_value};
     } elsif($store_type eq 'value') {
         $resultset = $store_value;
     } elsif($store_type eq 'code') {
-        ## $action, $controller, $ctx, @args)
-        $resultset = $self->$store_value($controller, $ctx. @args);
+        $resultset = $store_value->($controller, $self, $ctx. @args);
     } else {
-        Catalyst::Exception->throw(
-            message=>"'$store_type' is not recognized.  Please review your 'store' setting ($store_value) for $self"
-        );
+        $ctx->error("'$store_type' is not valid.");
     }
 
     if($resultset && ref $resultset && $resultset->isa('DBIx::Class::ResultSet')) {
         return $resultset;
     } else {
-        Catalyst::Exception->throw(
-            message=>"Your defined Store ($store_type) failed to return a proper ResultSet",
-        );        
+        $ctx->error("Your Store ($store_type) failed to return a ResultSet");
     }
 }
 

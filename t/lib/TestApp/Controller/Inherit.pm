@@ -39,8 +39,23 @@ __PACKAGE__->config(
                 notfound => {detach => 'local_notfound'},
             },
         },
+        'user_method_store' => {
+            store => {method => 'user_rs' },
+            find_condition => [ 'primary', ['email'] ],
+            auto_stash => 'user',
+        },
     },
 );
+
+has user_rs => (
+    is => 'ro',
+    lazy_build => 1,
+);
+
+sub _build_user_rs {
+    my $self = shift @_;
+    return $self->_app->model('Schema::User');
+}
 
 sub defaults
   :Path('defaults') 
@@ -101,6 +116,15 @@ sub user_detach_error
         my ($self, $ctx) = @_;
         push @{$ctx->stash->{res}}, 'local_notfound';
     }
+
+sub user_method_store 
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('user_method_store')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'user_method_store';
+}
 
 sub end :Private {
     my ($self, $ctx) = @_;

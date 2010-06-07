@@ -89,7 +89,13 @@ is $user_detach_notfound, 'user_detach_error,local_notfound',
   'got expected values for user_detach_notfound not found';
 
 
-warn $user_detach_notfound;
+ok my $user_method_store = request(GET '/inherit/user_method_store/100')->content,
+  'checking user_method_store';
+
+is $user_method_store, 'user_method_store,john@shutterstock.com',
+  'got expected values for user_method_store not found';
+
+## warn $user_method_store;
 
 done_testing;
 
