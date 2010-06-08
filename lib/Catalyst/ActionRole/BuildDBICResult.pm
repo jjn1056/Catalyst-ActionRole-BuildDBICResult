@@ -8,7 +8,6 @@ use Moose::Role;
 use namespace::autoclean;
 use Perl6::Junction qw(any all);
 use Moose::Util::TypeConstraints;
-use Catalyst::Exception;
 use Try::Tiny qw(try catch);
 
 requires 'name', 'dispatch';
@@ -173,9 +172,15 @@ sub columns_from_find_condition {
         unless($resultset->result_source->name_unique_constraint(\@columns)) {
             my $columns = join ',', @columns;
             my $name = $resultset->result_source->name;
-            Catalyst::Exception->throw(
-                message=>"Fields [$columns] don't match any constraints in resultsource: $name",
-            );           
+            Catalyst::Exception->throw(message=>"Fields [$columns] don't match any constraints in source $name");           
+        }
+    }
+    if(my $match_order = $find_condition->{match_order}) {
+        my @match_order = @$match_order;
+        if(all(@match_order) eq all(@columns)) {
+            @columns = @match_order;
+        } else {
+            Catalyst::Exception->throw(message=>"Bad match_order definition ". join(',',@match_order));
         }
     }
     return @columns;

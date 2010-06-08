@@ -126,6 +126,26 @@ sub user_method_store
     push @{$ctx->stash->{res}}, 'user_method_store';
 }
 
+sub user_role_root
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Chained
+  :CaptureArgs(2)
+{
+    my ($self, $ctx, $uid, $rid) = @_;
+    push @{$ctx->stash->{res}}, 'user_role_root';
+}
+
+sub user_role_display
+  :Chained('user_role_root')
+  :Args(0)
+{
+    my ($self, $ctx) = @_;
+    my $role = $ctx->stash->{user_role_root}->role->name;
+    push @{$ctx->stash->{res}}, $role;
+
+}
+
+
 sub end :Private {
     my ($self, $ctx) = @_;
     if(my $user = $ctx->stash->{user}) {
