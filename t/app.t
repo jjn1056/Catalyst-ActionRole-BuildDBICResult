@@ -95,7 +95,13 @@ ok my $user_method_store = request(GET '/inherit/user_method_store/100')->conten
 is $user_method_store, 'user_method_store,john@shutterstock.com',
   'got expected values for user_method_store not found';
 
-## warn $user_method_store;
+ok my $chained_multi = request(GET '/inherit/user_role/200/100/user_role_display')->content,
+  'checking user_method_store';
+
+is $chained_multi, 'user_role_root,member',
+  'got expected values for chained_multi not found';
+
+#warn $chained_multi;
 
 done_testing;
 

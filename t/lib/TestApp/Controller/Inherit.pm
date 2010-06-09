@@ -44,6 +44,14 @@ __PACKAGE__->config(
             find_condition => [ 'primary', ['email'] ],
             auto_stash => 'user',
         },
+        'user_role' => {
+            store => {stash => 'user_role_rs' },
+            find_condition => {
+                constraint_name => 'primary',
+                match_order => [qw/fk_role_id fk_user_id/],
+            },
+            auto_stash => 1,
+        },
     },
 );
 
@@ -126,25 +134,34 @@ sub user_method_store
     push @{$ctx->stash->{res}}, 'user_method_store';
 }
 
-sub user_role_root
-  :ActionClass('+TestApp::Action::BuildDBICResult')
-  :Chained
-  :CaptureArgs(2)
-{
+sub user_role_root 
+  :Chained('/')
+  :PathPrefix 
+  :CaptureArgs(0)
+{  
     my ($self, $ctx, $uid, $rid) = @_;
-    push @{$ctx->stash->{res}}, 'user_role_root';
+    my $user_role_rs = $ctx->model('Schema::UserRole');
+    $ctx->stash(user_role_rs => $user_role_rs);
 }
 
-sub user_role_display
-  :Chained('user_role_root')
-  :Args(0)
-{
-    my ($self, $ctx) = @_;
-    my $role = $ctx->stash->{user_role_root}->role->name;
-    push @{$ctx->stash->{res}}, $role;
+    sub user_role
+      :ActionClass('+TestApp::Action::BuildDBICResult')
+      :Chained('user_role_root')
+      :CaptureArgs(2)
+    {
+        my ($self, $ctx, $uid, $rid) = @_;
+        push @{$ctx->stash->{res}}, 'user_role_root';
+    }
 
-}
+        sub user_role_display
+          :Chained('user_role')
+          :Args(0)
+        {
+            my ($self, $ctx) = @_;
+            my $role = $ctx->stash->{user_role}->role->name;
+            push @{$ctx->stash->{res}}, $role;
 
+        }
 
 sub end :Private {
     my ($self, $ctx) = @_;

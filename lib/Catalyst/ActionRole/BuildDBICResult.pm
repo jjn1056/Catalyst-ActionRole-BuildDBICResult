@@ -177,9 +177,12 @@ sub columns_from_find_condition {
     }
     if(my $match_order = $find_condition->{match_order}) {
         my @match_order = @$match_order;
-        if(all(@match_order) eq all(@columns)) {
+        if( 
+            (@match_order == @columns) and
+            all(@match_order) eq any(@columns)
+        ) {
             @columns = @match_order;
-        } else {
+        } else {  
             Catalyst::Exception->throw(message=>"Bad match_order definition ". join(',',@match_order));
         }
     }
@@ -203,7 +206,6 @@ around 'dispatch' => sub  {
  
     my ($row, $err);
     for my $find_condition( @{$self->find_condition}) {
-
         my @args = @{$ctx->req->args};
         my @columns = $self->columns_from_find_condition($resultset, $find_condition);
 
