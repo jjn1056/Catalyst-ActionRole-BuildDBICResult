@@ -169,11 +169,14 @@ sub columns_from_find_condition {
     if(my $constraint_name = $find_condition->{constraint_name}) {
         @columns = $resultset->result_source->unique_constraint_columns($constraint_name);
     } else {
-        @columns = @{$find_condition->{columns}};
-        unless($resultset->result_source->name_unique_constraint(\@columns)) {
-            my $columns = join ',', @columns;
-            my $name = $resultset->result_source->name;
-            Catalyst::Exception->throw(message=>"Fields [$columns] don't match any constraints in source $name");           
+        if(@columns = @{$find_condition->{columns}}) {
+            unless($resultset->result_source->name_unique_constraint(\@columns)) {
+                my $columns = join ',', @columns;
+                my $name = $resultset->result_source->name;
+                Catalyst::Exception->throw(message=>"Fields [$columns] don't match any constraints in source $name");           
+            }
+        } else {
+            Catalyst::Exception->throw(message=>'You need either a constraint_name or columns definition');
         }
     }
     if(my $match_order = $find_condition->{match_order}) {
@@ -211,7 +214,7 @@ around 'dispatch' => sub  {
         my @columns = $self->columns_from_find_condition($resultset, $find_condition);
 
         unless(@columns == @args) {
-            my $err = sprintf "Arguments %s don't match the given find condition %s", join(',',@args), join(',',@columns);
+            my $err = 'the number of args ($#args) does not equal the constraint fields ($#columns)';
             $ctx->error($err);
         }
 
