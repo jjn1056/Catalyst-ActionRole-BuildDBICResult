@@ -18,7 +18,7 @@ subtype 'StoreType',
         my ($store_type, @extra) = keys %$_;
         my $return;
         unless(@extra) {
-            if($store_type eq any(qw/model method stash value code/)) {
+            if($store_type eq any(qw/model accessor stash value code/)) {
                 $return = 1;
             } else {
                 $return = 0;
@@ -39,7 +39,7 @@ has 'store' => (
     coerce => 1,
     required => 1,
     lazy => 1,
-    default => sub { +{method=>'get_model'} },
+    default => sub { +{accessor=>'get_model'} },
 );
 
 my $find_condition_tc = subtype 'FindCondition',
@@ -139,18 +139,19 @@ sub prepare_resultset {
     my $resultset;
     if($store_type eq 'model') {
         $resultset = $ctx->model($store_value);
-    } elsif($store_type eq 'method') {
+    } elsif($store_type eq 'accessor') {
         if(my $code = $controller->can($store_value)) {
             $resultset = $controller->$code();
         } else {
-            $ctx->error("$store_value is not a method on $controller");
+            $ctx->error("$store_value is not a accessor on $controller");
         }
     } elsif($store_type eq 'stash') {
         $resultset = $ctx->stash->{$store_value};
     } elsif($store_type eq 'value') {
         $resultset = $store_value;
     } elsif($store_type eq 'code') {
-        $resultset = $store_value->($controller, $self, $ctx. @args);
+        my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
+        $resultset = $code->($controller, $self, $ctx, @args);
     } else {
         $ctx->error("'$store_type' is not valid.");
     }
@@ -158,7 +159,7 @@ sub prepare_resultset {
     if($resultset && ref $resultset && $resultset->isa('DBIx::Class::ResultSet')) {
         return $resultset;
     } else {
-        $ctx->error("Your Store ($store_type) failed to return a ResultSet");
+        $ctx->error("Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
     }
 }
 
@@ -183,7 +184,7 @@ sub columns_from_find_condition {
         ) {
             @columns = @match_order;
         } else {  
-            Catalyst::Exception->throw(message=>"Bad match_order definition ". join(',',@match_order));
+            Catalyst::Exception->throw(message=>"Bad match_order definition ". join(',', @match_order));
         }
     }
     return @columns;
@@ -527,11 +528,11 @@ This role defines the following attributes.
 
 =head2 store
 
-This defines the method by which we get a L<DBIx::Class::ResultSet> suitable
+This defines the accessor by which we get a L<DBIx::Class::ResultSet> suitable
 for applying a L</find_condition>.  The canonical form is a HashRef where the
 keys / values conform to the following template.
 
-    { model||method||stash||value||code => Str||Code }
+    { model||accessor||stash||value||code => Str||Code }
 
 Details follow:
 
@@ -551,33 +552,42 @@ Store comes from a L<Catalyst::Model::DBIC::Schema> based model.
 
 This retrieves a L<DBIx::Class::ResultSet> via $ctx->model($dbic_model_name).
 
-=item {method => '$get_resultset'}
+=item {accessor => '$get_resultset'}
 
-Calls a method on the containing controller.
+Calls a accessor on the containing controller.  This is defined as a method
+which returns but doesn't mutate the instance, such as a L<Moose> attribute.
 
     __PACKAGE__->config(
         action_args => {
             user => {
-                store => { method => 'get_user_resultset' },
+                store => { accessor => 'user_resultset' },
             },
         }
     );
+
+    has user_resultset => (
+        is => 'ro',
+        lazy_build =>1,
+    );
+
+    sub _build_user_resultset {
+        my ($self) = @_;
+        ...
+        return $resultset;
+    }
 
     sub user :Action :Does('BuildDBICResult') :Args(1) {
         my ($self, $ctx, $arg) = @_;
     }
 
-    sub get_user_resultset {
-        my ($self, $action, @args) = @_;
-        ...
-        return $resultset;
-    }
-
-The containing controller must define this method and it must return a proper
+The containing controller must define this accessor and it must return a proper
 L<DBIx::Class::ResultSet> or an exception is thrown.
 
-Method is passed the action instance and the arguments passed into the action
-from the dispatcher.
+Since this is an accessor we are calling, we just invoke it with the calling
+controller instance only, as in $controller->$accessor.  If you need a more
+flexible code object, or something that can have access to more information
+please see the 'code' store below.
+
 
 =item {stash => '$name_of_stash_key' }
 
@@ -610,13 +620,14 @@ Useful if you need to directly assign an already prepared resultset as the
 value for doing $rs->find against.  You might use this with a more capable
 inversion of control container, such as L<Catalyst::Plugin::Bread::Board>.
 
-=item {code => sub { ... }}
+=item {code => sub { ... }|'controller_method_name'}
 
 Similar to the 'value' option above, might be useful if you are doing tricky
 setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
+or the string name of a method inside the containing controller.
 
     sub get_me_a_resultset {
-        my ($action, $controller, $ctx, @args) = @_;
+        my ($controller, $action, $ctx, @args) = @_;
         ## Some custom instantiation needs
         return $resultset;
     }
@@ -624,14 +635,25 @@ setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
     __PACKAGE__->config(
         action_args => {
             user => {
-                store => { code => \&get_me_a_resultset },
+                store => {
+                    code => 'get_me_a_resultset',
+                },
+            },
+            role => {
+                store => { 
+                    code => sub {
+                        my ($controller, $action, $ctx, @args) = @_;
+                        ## inlined code
+                        return #resultset;
+                    },
+                },
             },
         }
     );
 
-The coderef gets the following arguments: $action, which is the action object
-for the L<Catalyst::Action> based instance, $controller, which is the controller
-object containing the action, $ctx, which is the current context, and an array
+The coderef gets the following arguments: $controller, which is the controller
+object containing the action, $action, which is the action object for the 
+L<Catalyst::Action> based instance, $ctx, which is the current context, and an array
 of arguments which are the arguments passed to the action.
 
 =back
@@ -829,7 +851,7 @@ of forwarding by setting this option to any true value.
 If this is true (default is false), upon a FOUND result, place the found
 DBIC result into the stash.  If the value is alpha_numeric, that value is
 used as the stash key.  if its either 1, '1', 'true' or 'TRUE' we default
-to the name of the method associated with the consuming action.  For example:
+to the name of the accessor associated with the consuming action.  For example:
 
     __PACKAGE__->config(
         action_args => {
@@ -891,7 +913,7 @@ of L</detach_exceptions>.
 
 =head1 METHODS
 
-This role defines the follow methods which subclasses may wish to override.
+This role defines the follow accessors which subclasses may wish to override.
 
 =head1 FIND CONDITION DETAILS
 
@@ -902,7 +924,7 @@ examples.
 
 A find condition is the definition of something unique we can match and return
 a single row or result.  Basically this is anything you'd pass to the 'find'
-method of L<DBIx::Class::ResultSet>.
+accessor of L<DBIx::Class::ResultSet>.
 
 Canonically a find_condition is an ArrayRef of key limited HashRefs, but we 
 coerce from some common cases to make things a bit easier.  Examples follow.
@@ -1023,7 +1045,7 @@ storage, the value given is a reasonable guess.
 
 =head2 subroutine handlers versus action handlers
 
-Based on the result of the find condition we try to invoke methods or actions
+Based on the result of the find condition we try to invoke accessors or actions
 in the containing controller, based on a naming convention.  By default we first
 try to invoke an action based on the template $action."_".$result
 

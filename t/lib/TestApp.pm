@@ -14,6 +14,17 @@ __PACKAGE__->config(
 			dsn => 'dbi:SQLite:dbname=:memory:',
 		},
 	},
+    'Controller::Inherit' => {
+        action_args => {
+            'role_value_store' => {
+                store => {
+                    value => 'fff',
+                },
+                find_condition => [ 'primary', ['name'] ],
+                auto_stash => 'role',            
+            },
+        },
+    },
 );
 
 __PACKAGE__->setup;

@@ -16,7 +16,7 @@ ok my $defaults = TestApp->controller('Inherit')->action_for('defaults'),
 
 isa_ok $defaults, 'Catalyst::Action';
 
-is_deeply $defaults->store, {method=>'get_model'},
+is_deeply $defaults->store, {accessor=>'get_model'},
   'default store';
 
 is_deeply $defaults->find_condition, [{constraint_name=>'primary'}],
@@ -89,19 +89,36 @@ is $user_detach_notfound, 'user_detach_error,local_notfound',
   'got expected values for user_detach_notfound not found';
 
 
-ok my $user_method_store = request(GET '/inherit/user_method_store/100')->content,
-  'checking user_method_store';
+ok my $user_accessor_store = request(GET '/inherit/user_accessor_store/100')->content,
+  'checking user_accessor_store';
 
-is $user_method_store, 'user_method_store,john@shutterstock.com',
-  'got expected values for user_method_store not found';
+is $user_accessor_store, 'user_accessor_store,john@shutterstock.com',
+  'got expected values for user_accessor_store not found';
 
 ok my $chained_multi = request(GET '/inherit/user_role/200/100/user_role_display')->content,
-  'checking user_method_store';
+  'checking user_accessor_store';
 
 is $chained_multi, 'user_role_root,member',
   'got expected values for chained_multi not found';
 
-#warn $chained_multi;
+
+ok my $user_code_store = request(GET '/inherit/user_code_store/101')->content,
+  'checking user_code_store';
+
+is $user_code_store, 'user_code_store,james@shutterstock.com',
+  'got expected values for user_code_store not found';
+
+ok my $user_code_store2 = request(GET '/inherit/user_code_store2/102')->content,
+  'checking user_code_store2';
+
+is $user_code_store2, 'user_code_store2,jay@shutterstock.com',
+  'got expected values for user_code_store2 not found';
+
+SKIP: {
+    skip 'need better IOC (or something)', 1;
+    ok my $role_value_store = request(GET '/inherit/role_value_store/admin')->content,
+      'checking role_value_store';
+}
 
 done_testing;
 

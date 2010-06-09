@@ -39,8 +39,25 @@ __PACKAGE__->config(
                 notfound => {detach => 'local_notfound'},
             },
         },
-        'user_method_store' => {
-            store => {method => 'user_rs' },
+        'user_accessor_store' => {
+            store => {accessor => 'user_rs' },
+            find_condition => [ 'primary', ['email'] ],
+            auto_stash => 'user',
+        },
+        'user_code_store' => {
+            store => {
+                code => sub {
+                    my ($controller, $action, $ctx, @args) = @_;
+                    return $controller->user_rs;
+                },
+            },
+            find_condition => [ 'primary', ['email'] ],
+            auto_stash => 'user',
+        },
+        'user_code_store2' => {
+            store => {
+                code => 'get_user_code_store2',
+            },
             find_condition => [ 'primary', ['email'] ],
             auto_stash => 'user',
         },
@@ -125,13 +142,46 @@ sub user_detach_error
         push @{$ctx->stash->{res}}, 'local_notfound';
     }
 
-sub user_method_store 
+sub user_accessor_store 
   :ActionClass('+TestApp::Action::BuildDBICResult')
-  :Path('user_method_store')
+  :Path('user_accessor_store')
   :Args(1)
 {
     my ($self, $ctx, $id) = @_;
-    push @{$ctx->stash->{res}}, 'user_method_store';
+    push @{$ctx->stash->{res}}, 'user_accessor_store';
+}
+
+sub user_code_store 
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('user_code_store')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'user_code_store';
+}
+
+sub user_code_store2
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('user_code_store2')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'user_code_store2';
+}
+
+
+sub get_user_code_store2 {
+    my ($controller, $action, $ctx, @args) = @_;
+    return $controller->user_rs;
+};
+
+sub role_value_store 
+  :ActionClass('+TestApp::Action::BuildDBICResult')
+  :Path('role_value_store')
+  :Args(1)
+{
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'role_value_store';
 }
 
 sub user_role_root 
@@ -165,11 +215,14 @@ sub user_role_root
 
 sub end :Private {
     my ($self, $ctx) = @_;
+    if(my $role = $ctx->stash->{role}) {
+        my $name = $role->name;
+        push @{$ctx->stash->{res}}, $name
+    }
     if(my $user = $ctx->stash->{user}) {
         my $email = $user->email;
         push @{$ctx->stash->{res}}, $email;
     }
-
     if(my $res = $ctx->stash->{res}) {
         $ctx->res->body(join(',', @$res));
     }
