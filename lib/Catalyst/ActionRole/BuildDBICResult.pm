@@ -330,11 +330,11 @@ action role is to reduce the amount of boilerplate code you have to write to get
 these common cases completed. It is intented to encapsulate all the boilerplate
 code required to perform this task correctly and safely.
 
-Basically we encapsulate the logic: "For a given DBIC resultset, does the find
+Basically we encapsulate the logic: "For a given resultset, does the find
 condition return a valid result given the incoming arguments?  Depending on the
-result, delegate to an assigned handlers until the result is handled."
+result, delegate to assigned handlers until the result is handled."
 
-A find condition maps incoming action arguments to a DBIC unique
+A find condition maps incoming action arguments to a resultset unique
 constraint.  This condition resolves to one of three results: "FOUND", 
 "NOTFOUND", "ERROR".  Result condition "FOUND" returns when the find condition
 finds a single row against the defined ResultSet, NOTFOUND when the find
@@ -378,7 +378,7 @@ replace the following code:
             $user = $ctx->model('DBICSchema::User')
               ->find({user_id=>$user_id});
             1;
-        } or $ctx->forward('/error/server_error');
+        } or $ctx->go('/error/server_error');
 
         if($user) {
             ## You Found a User, do something useful...
@@ -411,6 +411,7 @@ With something like this code:
 
     sub  user_FOUND :Action {
         my ($self, $ctx, $user, $arg) = @_;
+        ## You Found a User, do something useful...
     }
 
     sub user_NOTFOUND :Action {
@@ -420,7 +421,7 @@ With something like this code:
 
     sub user_ERROR :Action {
         my ($self, $ctx, $error, $arg) = @_;
-        $ctx->log->error("Error finding User: $error");
+         $ctx->go('/error/server_error', [$error]);
     }
 
 Or, if you don't need to handle any code for your exceptional conditions (such
@@ -456,7 +457,7 @@ as NOTFOUND or ERROR) you can move more to the configuration:
     }
 
 Another example this time with Chained actions and a more complex DBIC result
-find condition, as well as custom exceptin handlers:
+find condition, as well as custom exception handlers:
 
     __PACKAGE__->config(
         action_args => {
@@ -484,7 +485,7 @@ find condition, as well as custom exceptin handlers:
     {
         my ($self, $ctx, $arg) = @_;
         my $user_details = $ctx->stash->{user};
-        ## Do something with the details, probably delegate to a View, etc.
+        ## Do something with the #user_details, probably delegate to a View.
     }
 
 This would replace something like the following custom code:
@@ -519,7 +520,9 @@ This would replace something like the following custom code:
     }
 
 Overall the idea here is to factor out a lot of boilerplate conditionals and
-replace them with a reasonable set of declarative conventions.
+replace them with a reasonable set of declarative conventions.  Additionally
+more behavior is moved to configuration, which will allow more flexible and
+rapid development.
 
 NOTE: Variable and class names above choosen for documentation readability
 and should not be considered best practice recomendations. For example, I would
@@ -559,7 +562,7 @@ This retrieves a L<DBIx::Class::ResultSet> via $ctx->model($dbic_model_name).
 =item {accessor => '$get_resultset'}
 
 Calls a accessor on the containing controller.  This is defined as a method
-which returns but doesn't mutate the instance, such as one created by "is=>'ro'"
+which returns but doesn't mutate the instance data, such as created by "is=>'ro'"
 in a L<Moose> attribute option list.
 
     __PACKAGE__->config(
@@ -582,6 +585,10 @@ in a L<Moose> attribute option list.
 
     sub user :Action :Does('BuildDBICResult') :Args(1) {
         my ($self, $ctx, $arg) = @_;
+    }
+
+    sub user_FOUND :Action {
+        my ($self, $ctx, $user, $arg) = @_;
     }
 
 The containing controller must define this accessor and it must return a proper
@@ -743,11 +750,19 @@ self documenting code.
 
 This should a way for a given resultset (defined in L</store> to find a single
 row.  Not finding anything is also an accepted option.  Everything else is some
-sort error.
+sort of error.
 
-Canonically, the find condition is an arrayref of unique constraints, as 
-defined in L<DBIx::Class::ResultSource> either with 'set_primary_key' or with
-'add_unique_constraint'. for example:
+Canonically is an ArrayRef of HashRefs where:
+
+    [\%condition1, \%condition2, ...]
+
+an where %condition is one of:
+
+    {constraint_name => '$name', ?match_order? => \@fields}
+    {columns => \@fields}
+
+However we define some coercions for simple causes.  If no value is supplied we
+default to {constraint_name => 'primary'}.
 
     ## in your DBIx::Class ResultSource
 	__PACKAGE__->set_primary_key('category_id');
@@ -761,7 +776,7 @@ defined in L<DBIx::Class::ResultSource> either with 'set_primary_key' or with
                 find_condition => [
                     'primary',
                     'category_name_is_unique',
-                ],
+                ], ## ArrayRef[Str] coerced to {constraint_name => ...}
             }
         }
     );
@@ -780,8 +795,9 @@ design or web api.
 
 Each unique constraint refers to one or more columns in your database.  Incoming
 args to an action are mapped to columns by the order they are defined in the
-primary key or unique constraint condition, or in a configured order.  Example
-of reordering multi field unique constraints:
+primary key or unique constraint condition, or in a configured order.
+
+Example of reordering multi field unique constraints:
 
     ## in your DBIx::Class ResultSource
 	__PACKAGE__->add_unique_constraint(user_role_is_unique => ['user_id', 'role_id']);
@@ -803,8 +819,9 @@ of reordering multi field unique constraints:
 
 In the above case 'match_order' is used to define an explict expected order to
 map incoming arguments to fields in a result store constraints.  If you don't
-both to set the match_order we default to the order you defined in your result
-store.
+set the match_order for a constraint_name, we default to the order you defined 
+in your result store. Since this might change we recommend using match_order 
+when you have a multi field constraint.
 
 Additionally since most developers don't bother to name their unique constraints
 we allow you to specify a constraint by its column(s):
@@ -834,21 +851,21 @@ Please note that 'columns' is used merely to discover the unique constraint
 which has already been defined via 'add_unique_constraint'.  You cannot name
 columns which are not already marked as fields in a unique constraint or in a
 primary key.  The order you define fields in your columns option should map 
-directly to the order expected by the incoming args.
+directly to the order expected by the incoming args.  So if your find_condition
+style is columns, you don't need to use match_order.
 
 We automatically handle the common case of mapping a single field primary key
 to a single argument in a controller "Args(1)".  If you fail to defined a
-find_condition this is the default we use.  See the L<SYNOPSIS> for this
-example.
+find_condition this is the default we use.
 
-Please see L</FIND CONDITIONS DETAILS> for more.
+Please see L</FIND CONDITIONS DETAILS> for more examples.
 
 =head2 auto_stash
 
 If this is true (default is false), upon a FOUND result, place the found
-DBIC result into the stash.  If the value is alpha_numeric, that value is
-used as the stash key.  if its either 1, '1', 'true' or 'TRUE' we default
-to the name of the accessor associated with the consuming action.  For example:
+result into the stash.  If the value is alpha_numeric, that value is
+used as the stash key.  if it is 1 or '1' we instead default to the name of 
+the accessor associated with the consuming action.  For example:
 
     __PACKAGE__->config(
         action_args => {
@@ -862,7 +879,14 @@ to the name of the accessor associated with the consuming action.  For example:
     }
 
 This could be combined with the L</handlers> attribute to make fast mocks and
-prototypes.  See below
+prototypes.  See below.
+
+NOTE: Currently if you set auto_stash to the string 'true' or 'TRUE', this will
+behave as though you are specifying the stash key (as in $c->stash(true=>$row))
+which maybe not be what you want.  This may change in the future in order to
+increase compatibility with configuration serialization that store booleans as
+"true", "false", etc.  As a result we recommend avoiding using those key words 
+as your stash key.
 
 =head2 handlers
 
@@ -904,9 +928,11 @@ Globalizing the 'error' and 'notfound' action handlers is probably the most
 useful.  Each option key within 'handlers' canonically takes a hashref, where
 the key is either 'forward' or 'detach' and the value is the name of something we
 can call "$ctx->forward" or "$ctx->detach" on.  We coerce from a string value
-into a hashref where 'forward' is the key (unless 'detach_exceptions' is true).
-If youd actually set the key value, that value is used no matter what the state
-of L</detach_exceptions>.
+into a hashref where 'forward' is the key.  Example:
+
+    handlers => { notfound => '/notfound' },
+
+would coerce to "handlers => {notfound => {forward => '/notfound'}}"
 
 =head1 METHODS
 
@@ -919,13 +945,6 @@ examples.
 
 =head2 defining a find condition
 
-A find condition is the definition of something unique we can match and return
-a single row or result.  Basically this is anything you'd pass to the 'find'
-accessor of L<DBIx::Class::ResultSet>.
-
-Canonically a find_condition is an ArrayRef of key limited HashRefs, but we 
-coerce from some common cases to make things a bit easier.  Examples follow.
-
 By default we automatically handle the most common case, where a single argument
 maps to a single column primary key field.  In every other case, such as when
 you have multi field primary keys or you are finding by an alternative unique
@@ -934,7 +953,7 @@ L<DBIx::Class::ResultSource> unique constraint you are matching against.  Since
 L<DBIx::Class> does not require you to name your unique constraints (many people
 let the underlying database follow its default convention in this matter),
 instead of a unique constraint name you may pass an ArrayRef of one or more
-columns which together define a uniqiue nstraint.  Please note if you use this
+columns which together define a uniqiue constraint.  Please note if you use this
 form of defining a find condition, you must use an ArrayRef EVEN if your condition
 has only a single column.
 
@@ -963,7 +982,6 @@ BTW, the above would internally 'canonicalize' the find_condition to:
 
     find_condition => [{
         constraint_name=>'primary',
-        columns=>['user_id'], 
         match_order=>['user_id'],
     }],
 
@@ -989,20 +1007,26 @@ constraint using the named columns, failed matches throw an expection.
         action_args => {
             photo => {
                 store => 'Schema::User',
-                find_condition =>  ['primary', {columns=>['email']}],
-            }
-        }
+                find_condition =>  [
+                    'primary', 
+                    { columns => ['email'] },
+                ],
+            },
+        },
     );
 
-An example where the find condition is a mult key unique constraint.
+An example where the find condition is a mult key unique constraint.  This
+example also demonstrates the HashRef to ArrayRef of HashRefs coercion.
 
     __PACKAGE__->config(
         action_args => {
             photo => {
                 store => 'Schema::User',
-                find_condition =>  {columns=>['user_id','role_id']},
-            }
-        }
+                find_condition => {
+                    columns => ['user_id','role_id'],
+                },
+            },
+        },
     );
 
 As above but lets you specify an argument to field order mapping which is
@@ -1013,38 +1037,18 @@ definition.
     __PACKAGE__->config(
         action_args => {
             photo => {
-                store => 'Schema::User',
+                store => 'Schema::UserRole',
                 find_condition =>  {
-                    columns=>['user_id','role_id'],
-                    match_order=>['role_id','user_id'],
+                    constraint_name => 'primary',
+                    match_order => ['fk_role_id','fk_user_id'],
                 },
             }
         }
     );
 
-This last would internally canonicalize to:
-
-    __PACKAGE__->config(
-        action_args => {
-            photo => {
-                store => {model => 'Schema::User'},
-                find_condition =>  [{
-                    constraint_name=>'fk_user_id_fk_role_id',
-                    columns=>['user_id','role_id'],
-                    match_order=>['role_id','user_id'],
-                }],
-            }
-        }
-    );
-
-Please note the 'constraint_name' in this case is provided by the underlying
-storage, the value given is a reasonable guess.
-
-=head2 subroutine handlers versus action handlers
-
-Based on the result of the find condition we try to invoke accessors or actions
-in the containing controller, based on a naming convention.  By default we first
-try to invoke an action based on the template $action."_".$result
+Again, the above example coerces to ArrayRef of HashRefs.  Please keep this in
+mind if you introspect the $action instance, since the coerced values may
+differ from those you placed in the configuration!
 
 =head1 NOTES
 
