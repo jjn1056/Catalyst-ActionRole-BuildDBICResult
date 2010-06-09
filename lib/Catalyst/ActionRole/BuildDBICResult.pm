@@ -235,7 +235,7 @@ around 'dispatch' => sub  {
     my $final_action_result = $self->$orig($ctx, @_);
 
     if($err) {
-        my ($type, $target) = ('forward', $controller->action_for($base_name .'_ERROR'));
+        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_ERROR') || $controller->action_for('ERROR')));
         if($self->has_handlers && $self->handlers->{error}) {
             ($type, $target) = %{$self->handlers->{error}};
         }
@@ -247,7 +247,7 @@ around 'dispatch' => sub  {
     } 
 
     if($row) {
-        my ($type, $target) = ('forward', $controller->action_for($base_name .'_FOUND'));
+        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_FOUND') || $controller->action_for('FOUND') ));
         if($self->has_handlers && $self->handlers->{found}) {
             ($type, $target) = %{$self->handlers->{found}};
         }
@@ -255,7 +255,7 @@ around 'dispatch' => sub  {
             $final_action_result = $ctx->$type( $target, [$row, @{$ctx->req->args}] );
         } 
     } else {
-        my ($type, $target) = ('forward', $controller->action_for($base_name .'_NOTFOUND'));
+        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_NOTFOUND') || $controller->action_for('NOTFOUND') ));
         if($self->has_handlers && $self->handlers->{notfound}) {
             ($type, $target) = %{$self->handlers->{notfound}};
         }
@@ -842,15 +842,6 @@ find_condition this is the default we use.  See the L<SYNOPSIS> for this
 example.
 
 Please see L</FIND CONDITIONS DETAILS> for more.
-
-=head2 detach_exceptions
-
-    detach_exceptions => 1, # default is 0
-
-By default we $ctx->forward to expection handlers (NOTFOUND, ERROR), which we
-believe gives you the most flexibility.  You can always detach within a handling
-action.  However if you wish, you can force NOTFOUND or ERROR to detach instead
-of forwarding by setting this option to any true value.
 
 =head2 auto_stash
 

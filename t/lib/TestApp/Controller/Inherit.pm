@@ -228,5 +228,9 @@ sub end :Private {
     }
 }
 
+sub NOTFOUND :Action {
+    my ($self, $ctx) = @_;
+    push @{$ctx->stash->{res}}, 'global_not_found';
+}
 
 1;

@@ -114,6 +114,12 @@ ok my $user_code_store2 = request(GET '/inherit/user_code_store2/102')->content,
 is $user_code_store2, 'user_code_store2,jay@shutterstock.com',
   'got expected values for user_code_store2 not found';
 
+ok my $global_not_found = request(GET '/inherit/user_code_store2/xxxx')->content,
+  'checking global_not_found';
+
+is $global_not_found, 'user_code_store2,global_not_found',
+  'got expected values for global_not_found not found';
+
 SKIP: {
     skip 'need better IOC (or something)', 1;
     ok my $role_value_store = request(GET '/inherit/role_value_store/admin')->content,
