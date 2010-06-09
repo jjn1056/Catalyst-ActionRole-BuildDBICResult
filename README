@@ -1,5 +1,5 @@
 NAME
-    Catalyst::Does::BuildDBICResult
+    Catalyst::ActionRole::BuildDBICResult
 
 SYNOPSIS
     The following is example usage for this role.

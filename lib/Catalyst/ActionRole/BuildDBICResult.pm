@@ -271,7 +271,7 @@ around 'dispatch' => sub  {
 
 =head1 NAME
 
-Catalyst::Does::BuildDBICResult
+Catalyst::ActionRole::BuildDBICResult
 
 =head1 SYNOPSIS
 
