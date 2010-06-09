@@ -324,9 +324,9 @@ class which extends L<Catalyst::Action>.)
 
 Mapping incoming arguments to a particular result in a L<DBIx::Class> based model
 is a pretty common development case.  Making choices based on the return of that
-result is also quite common.  For example, if you can 'find' a record matching 
+result is also quite common.  For example, if you can't 'find' a record matching 
 the args, you may wish to redirect to a not found error page.  The goal of this 
-action role is to reduce the amountof boilerplate code you have to write to get
+action role is to reduce the amount of boilerplate code you have to write to get
 these common cases completed. It is intented to encapsulate all the boilerplate
 code required to perform this task correctly and safely.
 
@@ -484,7 +484,7 @@ find condition, as well as custom exceptin handlers:
     {
         my ($self, $ctx, $arg) = @_;
         my $user_details = $ctx->stash->{user};
-        ## Do something with the details, probably delagate to a View, etc.
+        ## Do something with the details, probably delegate to a View, etc.
     }
 
 This would replace something like the following custom code:
@@ -518,6 +518,9 @@ This would replace something like the following custom code:
         ## Do something with the details, probably delagate to a View, etc.
     }
 
+Overall the idea here is to factor out a lot of boilerplate conditionals and
+replace them with a reasonable set of declarative conventions.
+
 NOTE: Variable and class names above choosen for documentation readability
 and should not be considered best practice recomendations. For example, I would
 not name my L<Catalyst::Model::DBIC::Schema> based model 'DBICSchema'.
@@ -540,7 +543,8 @@ Details follow:
 
 =item {model => '$dbic_model_name'}
 
-Store comes from a L<Catalyst::Model::DBIC::Schema> based model.
+Store comes from a L<Catalyst::Model::DBIC::Schema> based model.  This is the
+string you put in "$c->model" as in "$c->model('DBICSchema::User')".
 
     __PACKAGE__->config(
         action_args => {
@@ -555,7 +559,8 @@ This retrieves a L<DBIx::Class::ResultSet> via $ctx->model($dbic_model_name).
 =item {accessor => '$get_resultset'}
 
 Calls a accessor on the containing controller.  This is defined as a method
-which returns but doesn't mutate the instance, such as a L<Moose> attribute.
+which returns but doesn't mutate the instance, such as one created by "is=>'ro'"
+in a L<Moose> attribute option list.
 
     __PACKAGE__->config(
         action_args => {
@@ -572,8 +577,7 @@ which returns but doesn't mutate the instance, such as a L<Moose> attribute.
 
     sub _build_user_resultset {
         my ($self) = @_;
-        ...
-        return $resultset;
+        return $self->_app->model('Schema::User');
     }
 
     sub user :Action :Does('BuildDBICResult') :Args(1) {
@@ -602,7 +606,7 @@ Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
     );
 
 This is useful if you are descending a chain of actions and modifying or
-restricting a resultset based on the context or other logic.
+restricting a resultset based previous user actions.
 
 =item {value => $resultset_object}
 
@@ -620,7 +624,7 @@ Useful if you need to directly assign an already prepared resultset as the
 value for doing $rs->find against.  You might use this with a more capable
 inversion of control container, such as L<Catalyst::Plugin::Bread::Board>.
 
-=item {code => sub { ... }|'controller_method_name'}
+=item {code => sub { ... }||'controller_method_name'}
 
 Similar to the 'value' option above, might be useful if you are doing tricky
 setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
@@ -749,7 +753,7 @@ defined in L<DBIx::Class::ResultSource> either with 'set_primary_key' or with
 	__PACKAGE__->set_primary_key('category_id');
 	__PACKAGE__->add_unique_constraint(category_name_is_unique => ['name']);
 
-    ## in your (canonical expressed) L<Catalyst::Controller>
+    ## in your L<Catalyst::Controller>
     __PACKAGE__->config(
         action_args => {
             category => {
@@ -797,6 +801,11 @@ of reordering multi field unique constraints:
         }
     );
 
+In the above case 'match_order' is used to define an explict expected order to
+map incoming arguments to fields in a result store constraints.  If you don't
+both to set the match_order we default to the order you defined in your result
+store.
+
 Additionally since most developers don't bother to name their unique constraints
 we allow you to specify a constraint by its column(s):
 
@@ -811,7 +820,6 @@ we allow you to specify a constraint by its column(s):
                 find_condition => [
                     {
                         columns => ['user_id','role_id'],
-                        match_order => ['role_id','user_id'],
                     }
                 ],
             }
@@ -825,17 +833,15 @@ we allow you to specify a constraint by its column(s):
 Please note that 'columns' is used merely to discover the unique constraint 
 which has already been defined via 'add_unique_constraint'.  You cannot name
 columns which are not already marked as fields in a unique constraint or in a
-primary key.  Additionally the order of columns used in 'columns' is not 
-relevent or meaningful; if you need to control how your action args order map
-to DBIC fields, use 'match_order'
-
+primary key.  The order you define fields in your columns option should map 
+directly to the order expected by the incoming args.
 
 We automatically handle the common case of mapping a single field primary key
 to a single argument in a controller "Args(1)".  If you fail to defined a
 find_condition this is the default we use.  See the L<SYNOPSIS> for this
 example.
 
-This is an API overview, please see L</FIND CONDITIONS DETAILS> for more.
+Please see L</FIND CONDITIONS DETAILS> for more.
 
 =head2 detach_exceptions
 
