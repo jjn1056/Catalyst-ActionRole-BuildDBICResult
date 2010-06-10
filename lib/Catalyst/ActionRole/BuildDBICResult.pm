@@ -1088,7 +1088,7 @@ more modern L<Catalyst> based on L<Moose>.
 
 =head2 Why require such a modern L<Catalyst>?
 
-We need a version of L<Catalyst that is post the L<Moose> migration; additionally
+We need a version of L<Catalyst> that is post the L<Moose> migration; additionally
 we need equal to or greater than version '5.80019' for the ability to define 
 'action_args' in a controller.  See L<Catalyst::Controller> for more.
 
