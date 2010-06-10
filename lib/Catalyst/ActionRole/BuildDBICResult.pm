@@ -342,7 +342,7 @@ Please see the test cases for more detailed examples.
 
 =head1 DESCRIPTION
 
-This is a <Moose::Role> intending to enhance any L<Catalyst::Action>, typically
+This is a L<Moose::Role> intending to enhance any L<Catalyst::Action>, typically
 applied in your L<Catalyst::Controller::ActionRole> based controllers, although
 it can also be consumed as a role on your custom action classes (such as any 
 class which extends L<Catalyst::Action>.)

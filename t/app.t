@@ -126,5 +126,11 @@ SKIP: {
       'checking role_value_store';
 }
 
+ok my $doesuser100 = request(GET '/does/user_default/100')->content,
+  'got user 100';
+
+is $doesuser100, 'user_default,john@shutterstock.com',
+  'got expected values for user 100';
+
 done_testing;
 
