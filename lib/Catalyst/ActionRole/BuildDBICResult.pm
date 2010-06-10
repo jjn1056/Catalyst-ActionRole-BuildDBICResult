@@ -30,8 +30,24 @@ subtype 'StoreType',
     };
 
 coerce 'StoreType',
+    from 'Object',
+    via { +{value => $_} },
+    from 'CodeRef',
+    via { +{code=>$_} },
     from 'Str',
-    via { +{model=>$_} };
+    via { 
+        my $type = $_;
+        my $return;
+        if(
+            ($type=~m/::/) ||
+            ($type=~m/^[A-Z]/)
+        ) {
+            $return = {model=>$_};
+        } else {
+            $return = {stash=>$_};
+        }
+        $return;
+    };
 
 has 'store' => (
     isa => 'StoreType',
@@ -765,7 +781,7 @@ If the value is a subroutine reference, we coerce to the coderef type.
     __PACKAGE__->config(
         action_args => {
             user => {
-                ## Internally coerced to "store => { coderef => sub {...} }".
+                ## Internally coerced to "store => { code => sub {...} }".
                 store => sub { ... },
             },
         }
