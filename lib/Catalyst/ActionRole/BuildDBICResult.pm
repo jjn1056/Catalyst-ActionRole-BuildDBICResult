@@ -133,7 +133,6 @@ has 'handlers' => (
 ## TODO: refactor please! What a messssssss!
 sub prepare_resultset {
     my ($self, $controller, $ctx) = @_;
-    my @args = @{$ctx->req->args};
     my ($store_type, $store_value) = %{$self->store};
 
     my $resultset;
@@ -151,6 +150,7 @@ sub prepare_resultset {
         $resultset = $store_value;
     } elsif($store_type eq 'code') {
         my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
+        my @args = @{$ctx->req->args};        
         $resultset = $code->($controller, $self, $ctx, @args);
     } else {
         $ctx->error("'$store_type' is not valid.");
@@ -161,6 +161,9 @@ sub prepare_resultset {
     } else {
         $ctx->error("Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
     }
+}
+
+sub  resultset_from_model {
 }
 
 sub columns_from_find_condition {
