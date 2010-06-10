@@ -319,11 +319,17 @@ The following is example usage for this role.
         :Does('FindsDBICResult')
     {
         my ($self, $ctx, $id) = @_;
-        ## This is always executed, and is done so first. 
+
+        ## This is always executed, and is done so before we dispatch to one of
+        ## the following condition actions (but not before we attempt to find 
+        ## the @args in your store resultset. 
     }
 
     sub  user_FOUND :Action {
         my ($self, $ctx, $user, $id) = @_;
+        
+        ## Your $id was found in DBICSchema::User and was passed to the action
+        ## as $user.  You also get the original $id in case you need it.
     }
 
     sub user_NOTFOUND :Action {
@@ -331,7 +337,6 @@ The following is example usage for this role.
          $ctx->go('/error/not_found'); 
     }
 
-    ## If *_ERROR is not defined, rethrow any errors as a L<Catalyst::Exception>
     sub user_ERROR :Action {
         my ($self, $ctx, $error, $id = @_;
         $ctx->log->error("Error finding User with $id: $error");
@@ -369,15 +374,15 @@ in a catchable error.
 Based on the result condition we automatically call an action whose name 
 matches a default template, as in the SYNOPSIS above.  You may also override
 this default template via configuration.  This makes it easy to configure
-common results, like NOTFOUND, to be handled by a common action.
+common results to be handled by a common action.
 
 Be default an ERROR result also calls a NOTFOUND (after calling the ERROR
 handler), since both conditions logically match.  However ERROR is delegated to
 first, so if you go/detach in that action, the NOTFOUND will not be called.
 
 When dispatching a result condition, such as ERROR, FOUND, etc., to a handler,
-we follow a hierachy of defaults, followed by any handlers added in configuration.
-The first matching handler takes the request and the remaining are ignored.
+we follow a hierachy of defaults or any handlers added in configuration.  The 
+first matching handler takes the request and the remaining are ignored.
 
 It is not the intention of this action role to handle 'kitchen sink' tasks
 related to accessing the your DBIC model.  If you need more we recommend looking
@@ -489,7 +494,7 @@ find condition, as well as custom exception handlers:
             user => {
                 store => { stash => 'user_rs' },
                 find_condition => { columns => ['email'] },
-                auto_stash => 1,
+                auto_stash => 'user',
                 handlers => {
                     notfound => { detach => '/error/notfound' },
                     error => { go => '/error/server_error' },
@@ -503,10 +508,10 @@ find condition, as well as custom exception handlers:
         $ctx->stash(user_rs=>$ctx->model('DBICSchema::User'));
     }
 
-    sub user :Chained('root') :CaptureArgs(1) 
+    sub find_user :Chained('root') :CaptureArgs(1) 
         :Does('FindsDBICResult') {}
 
-    sub details :Chained('user') :Args(0) 
+    sub show_details :Chained('user') :Args(0) 
     {
         my ($self, $ctx, $arg) = @_;
         my $user_details = $ctx->stash->{user};
@@ -547,7 +552,7 @@ This would replace something like the following custom code:
 Overall the idea here is to factor out a lot of boilerplate conditionals and
 replace them with a reasonable set of declarative conventions.  Additionally
 more behavior is moved to configuration, which will allow more flexible and
-rapid development.
+rapid development and more easily centralized behaviors.
 
 NOTE: Variable and class names above choosen for documentation readability
 and should not be considered best practice recomendations. For example, I would
