@@ -158,8 +158,12 @@ sub resultset_from_value {
 sub resultset_from_code {
     my ($self, $controller, $ctx, $store_value) = @_;
     my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
-    my @args = @{$ctx->req->args};        
-    return $code->($controller, $self, $ctx, @args);
+    my @args = @{$ctx->req->args};
+    if($code) {      
+        return $code->($controller, $self, $ctx, @args);
+    } else {
+        $ctx->error("Can't call code when it doesn't exist");
+    }
 }
 
 sub prepare_resultset {
