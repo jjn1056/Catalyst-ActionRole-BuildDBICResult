@@ -199,6 +199,18 @@ sub result_from_columns {
     return $resultset->find(\%find_condition);
 }
 
+sub get_type_target {
+    my ($self, $controller, $handler) = @_;
+    if($self->has_handlers && $self->handlers->{$handler}) {
+        return %{$self->handlers->{$handler}};
+    } else {
+        return ('forward', 
+            ($controller->action_for($self->name .'_'. uc($handler)) || 
+            $controller->action_for(uc($handler)))
+        );
+    }        
+}
+
 around 'dispatch' => sub  {
 
     my $orig = shift @_;
@@ -227,21 +239,16 @@ around 'dispatch' => sub  {
         last if($row or $err);
     }
 
-    my $base_name = $self->name;
-
     if($row && $self->auto_stash) {
         my $key = $self->auto_stash;
-        $key = $key=~m/^[\w]{2,}/ ? $key : $base_name;
+        $key = $key=~m/^[\w]{2,}/ ? $key : $self->name;
         $ctx->stash($key => $row);
     }
 
     my $final_action_result = $self->$orig($ctx, @_);
 
     if($err) {
-        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_ERROR') || $controller->action_for('ERROR')));
-        if($self->has_handlers && $self->handlers->{error}) {
-            ($type, $target) = %{$self->handlers->{error}};
-        }
+        my ($type, $target) = $self->get_type_target($controller, 'error');
         if($target) {
              $ctx->$type( $target, [$err, @{$ctx->req->args}] );
         } else {
@@ -250,18 +257,12 @@ around 'dispatch' => sub  {
     } 
 
     if($row) {
-        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_FOUND') || $controller->action_for('FOUND') ));
-        if($self->has_handlers && $self->handlers->{found}) {
-            ($type, $target) = %{$self->handlers->{found}};
-        }
+        my ($type, $target) = $self->get_type_target($controller, 'found');
         if($target) {
             $final_action_result = $ctx->$type( $target, [$row, @{$ctx->req->args}] );
         } 
     } else {
-        my ($type, $target) = ('forward', ($controller->action_for($base_name .'_NOTFOUND') || $controller->action_for('NOTFOUND') ));
-        if($self->has_handlers && $self->handlers->{notfound}) {
-            ($type, $target) = %{$self->handlers->{notfound}};
-        }
+        my ($type, $target) = $self->get_type_target($controller, 'notfound');
         if($target) {
             $final_action_result =  $ctx->$type( $target, $ctx->req->args );
         }
