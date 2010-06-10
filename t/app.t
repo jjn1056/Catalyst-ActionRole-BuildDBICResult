@@ -126,11 +126,80 @@ SKIP: {
       'checking role_value_store';
 }
 
+
 ok my $doesuser100 = request(GET '/does/user_default/100')->content,
   'got user 100';
 
 is $doesuser100, 'user_default,john@shutterstock.com',
   'got expected values for user 100';
+
+ok my $does_user_email = request(GET '/does/user_default/john@shutterstock.com')->content,
+  'got user from email';
+
+is $does_user_email, 'user_default,john@shutterstock.com',
+  'got expected values for user email';
+
+ok my $does_user_notfound = request(GET '/does/user_default/xxxx.com')->content,
+  'got user from email';
+
+is $does_user_notfound, 'user_default,notfound',
+  'got expected values for user not found';
+
+ok my $does_user_error = request(GET '/does/user_default/error@error.com')->content,
+  'generated an error';
+
+is $does_user_error, 'user_default,error,BOO,notfound',
+  'got expected values for user not found';
+
+
+ok my $does_user_detach_error = request(GET '/does/user_detach_error/100')->content,
+  'checking auto stash';
+
+is $does_user_detach_error, 'user_detach_error,john@shutterstock.com',
+  'got expected values for user_detach_error not found';
+
+ok my $does_user_detach_notfound = request(GET '/does/user_detach_error/xxxxxx')->content,
+  'checking auto stash';
+
+is $does_user_detach_notfound, 'user_detach_error,local_notfound',
+  'got expected values for user_detach_notfound not found';
+
+
+ok my $does_user_accessor_store = request(GET '/does/user_accessor_store/100')->content,
+  'checking user_accessor_store';
+
+is $does_user_accessor_store, 'user_accessor_store,john@shutterstock.com',
+  'got expected values for user_accessor_store not found';
+
+ok my $does_chained_multi = request(GET '/does/user_role/200/100/user_role_display')->content,
+  'checking user_accessor_store';
+
+is $does_chained_multi, 'user_role_root,member',
+  'got expected values for chained_multi not found';
+
+ok my $does_user_code_store = request(GET '/does/user_code_store/101')->content,
+  'checking user_code_store';
+
+is $does_user_code_store, 'user_code_store,james@shutterstock.com',
+  'got expected values for user_code_store not found';
+
+ok my $does_user_code_store2 = request(GET '/does/user_code_store2/102')->content,
+  'checking user_code_store2';
+
+is $does_user_code_store2, 'user_code_store2,jay@shutterstock.com',
+  'got expected values for $does_user_code_store2 not found';
+
+ok my $does_global_not_found = request(GET '/does/user_code_store2/xxxx')->content,
+  'checking $does_global_not_found';
+
+is $does_global_not_found, 'user_code_store2,global_not_found',
+  'got expected values for global_not_found not found';
+
+SKIP: {
+    skip 'need better IOC (or something)', 1;
+    ok my $does_role_value_store = request(GET '/does/role_value_store/admin')->content,
+      'checking role_value_store';
+}
 
 done_testing;
 
