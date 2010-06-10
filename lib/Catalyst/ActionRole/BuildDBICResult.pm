@@ -130,28 +130,45 @@ has 'handlers' => (
     predicate => 'has_handlers',
 );
 
-## TODO: refactor please! What a messssssss!
+sub resultset_from_model {
+    my ($self, $controller, $ctx, $store_value) = @_;
+    return $ctx->model($store_value);
+}
+
+sub resultset_from_accessor {
+    my ($self, $controller, $ctx, $store_value) = @_;
+    if(my $code = $controller->can($store_value)) {
+        return $controller->$code();
+    } else {
+        $ctx->error("$store_value is not a accessor on $controller");
+    }
+    return;
+}
+
+sub resultset_from_stash {
+    my ($self, $controller, $ctx, $store_value) = @_;
+    return $ctx->stash->{$store_value};
+}
+
+sub resultset_from_value {
+    my ($self, $controller, $ctx, $store_value) = @_;
+    return $store_value;
+}
+
+sub resultset_from_code {
+    my ($self, $controller, $ctx, $store_value) = @_;
+    my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
+    my @args = @{$ctx->req->args};        
+    return $code->($controller, $self, $ctx, @args);
+}
+
 sub prepare_resultset {
     my ($self, $controller, $ctx) = @_;
     my ($store_type, $store_value) = %{$self->store};
 
     my $resultset;
-    if($store_type eq 'model') {
-        $resultset = $ctx->model($store_value);
-    } elsif($store_type eq 'accessor') {
-        if(my $code = $controller->can($store_value)) {
-            $resultset = $controller->$code();
-        } else {
-            $ctx->error("$store_value is not a accessor on $controller");
-        }
-    } elsif($store_type eq 'stash') {
-        $resultset = $ctx->stash->{$store_value};
-    } elsif($store_type eq 'value') {
-        $resultset = $store_value;
-    } elsif($store_type eq 'code') {
-        my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
-        my @args = @{$ctx->req->args};        
-        $resultset = $code->($controller, $self, $ctx, @args);
+    if(my $code = $self->can('resultset_from_'.$store_type)) {
+        $resultset = $self->$code($controller, $ctx, $store_value);
     } else {
         $ctx->error("'$store_type' is not valid.");
     }
@@ -161,9 +178,6 @@ sub prepare_resultset {
     } else {
         $ctx->error("Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
     }
-}
-
-sub  resultset_from_model {
 }
 
 sub columns_from_find_condition {
