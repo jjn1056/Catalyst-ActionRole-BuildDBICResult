@@ -33,7 +33,7 @@ coerce 'StoreType',
     from 'Object',
     via { +{value => $_} },
     from 'CodeRef',
-    via { +{code=>$_} },
+    via { +{code => $_} },
     from 'Str',
     via { 
         my $type = $_;
@@ -42,9 +42,9 @@ coerce 'StoreType',
             ($type=~m/::/) ||
             ($type=~m/^[A-Z]/)
         ) {
-            $return = {model=>$_};
+            $return = {model => $type};
         } else {
-            $return = {stash=>$_};
+            $return = {stash => "$type"};
         }
         $return;
     };
@@ -137,7 +137,10 @@ subtype 'Handlers',
 
 coerce 'Handlers',
     from 'HashRef[Str]',
-    via { +{forward=>$_} };
+    via { 
+        my ($type,$target) = %$_;
+        +{$type => {forward=>$target}};
+     };
 
 has 'handlers' => (
     is => 'ro',
