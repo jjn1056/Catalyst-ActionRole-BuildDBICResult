@@ -968,9 +968,9 @@ to the end of the lookup list for a given result condition.  This is a HashRef
 that accepts one or more of the following keys: found, notfound, error. Example:
 
     handlers => {
-        found => { forward|detach|go|visit => $found_action_name },
-        notfound => { forward|detach|go|visit => $notfound_action_name },
-        error => { forward|detach|go|visit => $error_action_name },
+        found => { forward||detach||go||visit => $found_action_name },
+        notfound => { forward||detach||go||visit => $notfound_action_name },
+        error => { forward||detach||go||visit => $error_action_name },
     }
 
 Globalizing the 'error' and 'notfound' action handlers is probably the most 
