@@ -256,6 +256,8 @@ around 'dispatch' => sub  {
     my $orig = shift @_;
     my $self = shift @_;
     my $ctx = shift @_;
+
+warn "dispatcher: ".$self->name;
  
     my $controller = $ctx->component($self->class);
     my $resultset = $self->prepare_resultset($controller,$ctx);

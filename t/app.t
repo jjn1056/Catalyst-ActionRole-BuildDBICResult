@@ -151,7 +151,6 @@ ok my $does_user_error = request(GET '/does/user_default/error@error.com')->cont
 is $does_user_error, 'user_default,error,BOO,notfound',
   'got expected values for user not found';
 
-
 ok my $does_user_detach_error = request(GET '/does/user_detach_error/100')->content,
   'checking auto stash';
 
@@ -200,6 +199,12 @@ SKIP: {
     ok my $does_role_value_store = request(GET '/does/role_value_store/admin')->content,
       'checking role_value_store';
 }
+
+ok my $generated = request(GET '/does/generated/100')->content,
+  'checking generated';
+
+is $generated, 'generated,john@shutterstock.com',
+  'got expected values for generated not found';
 
 done_testing;
 

@@ -9,7 +9,17 @@ BEGIN {
 }
 
 __PACKAGE__->config(
+    action => {
+        'generated' => {
+            Path => 'generated',
+            Args => 1,
+            Does => 'BuildDBICResult',
+        },
+    },
     action_args => {
+        'generated' => {
+            store => 'Schema::User',
+        },
         'store_as_str' => {
             store => 'User',
         },
@@ -76,6 +86,16 @@ has user_rs => (
     is => 'ro',
     lazy_build => 1,
 );
+
+sub generated {
+    my ($self, $ctx, $id) = @_;
+    push @{$ctx->stash->{res}}, 'generated';
+}
+
+    sub generated_FOUND :Action {
+        my ($self, $ctx, $user, $id) = @_;
+        push @{$ctx->stash->{res}}, $user->email;
+    }
 
 sub _build_user_rs {
     my $self = shift @_;
