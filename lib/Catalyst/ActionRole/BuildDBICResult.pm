@@ -7,13 +7,18 @@ BEGIN {
 use Moose::Role;
 use namespace::autoclean;
 use Perl6::Junction qw(any all);
-use Moose::Util::TypeConstraints;
 use Try::Tiny qw(try catch);
 
 requires 'name', 'dispatch';
 
-subtype 'StoreType',
-    as 'HashRef',
+use MooseX::Types -declare => [
+    qw(StoreType FindCondition FindConditions HandlerActionInfo Handlers)
+];
+
+use MooseX::Types::Moose qw/HashRef ArrayRef Object CodeRef Str Bool/;
+
+subtype StoreType,
+    as HashRef,
     where {
         my ($store_type, @extra) = keys %$_;
         my $return;
@@ -29,12 +34,12 @@ subtype 'StoreType',
         $return;
     };
 
-coerce 'StoreType',
-    from 'Object',
+coerce StoreType,
+    from Object,
     via { +{value => $_} },
-    from 'CodeRef',
+    from CodeRef,
     via { +{code => $_} },
-    from 'Str',
+    from Str,
     via { 
         my $type = $_;
         my $return;
@@ -50,7 +55,7 @@ coerce 'StoreType',
     };
 
 has 'store' => (
-    isa => 'StoreType',
+    isa => StoreType,
     is => 'ro',
     coerce => 1,
     required => 1,
@@ -58,8 +63,8 @@ has 'store' => (
     default => sub { +{accessor=>'get_model'} },
 );
 
-my $find_condition_tc = subtype 'FindCondition',
-    as 'HashRef',
+subtype FindCondition,
+    as HashRef,
     where {
         my @keys = keys(%$_);
         my $return;
@@ -78,27 +83,27 @@ my $find_condition_tc = subtype 'FindCondition',
         $return;
     };
 
-coerce 'FindCondition',
-    from 'Str',
+coerce FindCondition,
+    from Str,
     via { +{constraint_name=>$_} },
-    from 'ArrayRef',
+    from ArrayRef,
     via { +{columns=>$_} };
 
-subtype 'FindConditions',
-    as 'ArrayRef[FindCondition]';
+subtype FindConditions,
+    as ArrayRef[FindCondition];
 
-coerce 'FindConditions',
-    from 'FindCondition',
+coerce FindConditions,
+    from FindCondition,
     via { +[$_] },
-    from 'Str',
+    from Str,
     via { +[{constraint_name=>$_}] },
-    from 'ArrayRef',
+    from ArrayRef,
     via {
-        [map { $find_condition_tc->coerce($_) } @$_];
+        [map { to_FindCondition($_) } @$_];
     };
 
 has 'find_condition' => (
-    isa => 'FindConditions',
+    isa => FindConditions,
     is => 'ro',
     coerce => 1,
     required => 1,
@@ -106,10 +111,10 @@ has 'find_condition' => (
     default => sub { +[{constraint_name=>'primary'}] },
 );
 
-has 'auto_stash' => (is=>'ro', required=>1, lazy=>1, default=>0);
+has 'auto_stash' => (is=>'ro', isa=>Bool|Str, required=>1, lazy=>1, default=>0);
 
-subtype 'HandlerActionInfo',
-    as 'HashRef',
+subtype HandlerActionInfo,
+    as HashRef,
     where {
         my @keys = keys(%$_);
         if(
@@ -123,8 +128,8 @@ subtype 'HandlerActionInfo',
     },
     message { "Disallowed Key in: ". join(',', keys(%$_)) };
 
-subtype 'Handlers',
-    as 'HashRef[HandlerActionInfo]',
+subtype Handlers,
+    as HashRef[HandlerActionInfo],
     where {
         my @keys = keys(%$_);
         if(all(@keys) eq any(qw/found notfound error/)) {
@@ -135,8 +140,8 @@ subtype 'Handlers',
     },
     message { "Disallowed key in: ". join(',',keys(%$_)) };
 
-coerce 'Handlers',
-    from 'HashRef[Str]',
+coerce Handlers,
+    from HashRef[Str],
     via { 
         my ($type,$target) = %$_;
         +{$type => {forward=>$target}};
@@ -144,7 +149,7 @@ coerce 'Handlers',
 
 has 'handlers' => (
     is => 'ro',
-    isa => 'Handlers',
+    isa => Handlers,
     coerce => 1,
     predicate => 'has_handlers',
 );
