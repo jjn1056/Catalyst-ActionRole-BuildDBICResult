@@ -15,6 +15,9 @@ __PACKAGE__->config(
             Args => 1,
             Does => 'BuildDBICResult',
         },
+        'generated_FOUND' => {
+            Action => 1,
+        },
     },
     action_args => {
         'generated' => {
@@ -92,7 +95,7 @@ sub generated {
     push @{$ctx->stash->{res}}, 'generated';
 }
 
-    sub generated_FOUND :Action {
+    sub generated_FOUND {
         my ($self, $ctx, $user, $id) = @_;
         push @{$ctx->stash->{res}}, $user->email;
     }
