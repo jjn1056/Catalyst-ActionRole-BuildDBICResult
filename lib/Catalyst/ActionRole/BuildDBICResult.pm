@@ -573,6 +573,44 @@ This would replace something like the following custom code:
         ## Do something with the details, probably delagate to a View, etc.
     }
 
+Another example where the controller is very thin, basically we are just 
+getting a result (or not) from a store and letting a View pick it u:
+
+    package MyApp::Controller::User;
+    use Moose;
+
+    BEGIN {
+        extends 'Catalyst::Controller::ActionRole';
+    }
+
+    __PACKAGE__->config(
+        action => {
+            'user' => {
+                Path => 'user',
+                Args => 1,
+                Does => 'BuildDBICResult',
+            },
+         },
+        action_args => {
+            'user' => {
+                store => 'Schema::User',
+                auto_stash => 1,
+                handlers => {
+                    notfound => { go => '/error/notfound' },
+                    error => { go => '/error/server_error' },
+                },
+            },
+        }
+    );
+
+    sub user {};
+
+    1;
+
+And assuming you have a root end action that is using L<Catalyst::Action::RenderView>
+or similar, you will automatically delagate to a View object and send it a stash
+with a 'user' result.
+
 Overall the idea here is to factor out a lot of boilerplate conditionals and
 replace them with a reasonable set of declarative conventions.  Additionally
 more behavior is moved to configuration, which will allow more flexible and
