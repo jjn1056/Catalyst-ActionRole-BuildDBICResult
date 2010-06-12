@@ -1020,15 +1020,11 @@ Globalizing the 'error' and 'notfound' action handlers is probably the most
 useful.  Each option key within 'handlers' canonically takes a hashref, where
 the key is either 'forward' or 'detach' and the value is the name of something we
 can call "$ctx->forward" or "$ctx->detach" on.  We coerce from a string value
-into a hashref where 'forward' is the key.  Example:
+into a hashref where 'detach' is the key.  Example:
 
     handlers => { notfound => '/notfound' },
 
-would coerce to "handlers => {notfound => {forward => '/notfound'}}"
-
-=head1 METHODS
-
-This role defines the follow accessors which subclasses may wish to override.
+would coerce to "handlers => {notfound => {detach => '/notfound'}}"
 
 =head1 FIND CONDITION DETAILS
 
