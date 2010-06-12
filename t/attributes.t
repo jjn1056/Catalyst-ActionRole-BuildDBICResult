@@ -82,7 +82,7 @@ ok $@, 'got an error from columns=>HashRef as expected';
 ok my $default_handler_type = Test::Catalyst::ActionRole::BuildDBICResult->new(handlers=>{found => 'fff'})->handlers,
   'Got default handlers';
 
-is_deeply $default_handler_type, { found => { forward => "fff" } },
+is_deeply $default_handler_type, { found => { detach => "fff" } },
   'got expected coercion';
 
 done_testing;

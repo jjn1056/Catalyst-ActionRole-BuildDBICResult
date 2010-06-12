@@ -144,7 +144,7 @@ coerce Handlers,
     from HashRef[Str],
     via { 
         my ($type,$target) = %$_;
-        +{$type => {forward=>$target}};
+        +{$type => {detach=>$target}};
      };
 
 has 'handlers' => (
