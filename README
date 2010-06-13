@@ -254,6 +254,44 @@ EXAMPLES
             ## Do something with the details, probably delagate to a View, etc.
         }
 
+    Another example where the controller is very thin, basically we are just
+    getting a result (or not) from a store and letting a View pick it u:
+
+        package MyApp::Controller::User;
+        use Moose;
+
+        BEGIN {
+            extends 'Catalyst::Controller::ActionRole';
+        }
+
+        __PACKAGE__->config(
+            action => {
+                'user' => {
+                    Path => 'user',
+                    Args => 1,
+                    Does => 'BuildDBICResult',
+                },
+             },
+            action_args => {
+                'user' => {
+                    store => 'Schema::User',
+                    auto_stash => 1,
+                    handlers => {
+                        notfound => { go => '/error/notfound' },
+                        error => { go => '/error/server_error' },
+                    },
+                },
+            }
+        );
+
+        sub user {};
+
+        1;
+
+    And assuming you have a root end action that is using
+    Catalyst::Action::RenderView or similar, you will automatically delagate
+    to a View object and send it a stash with a 'user' result.
+
     Overall the idea here is to factor out a lot of boilerplate conditionals
     and replace them with a reasonable set of declarative conventions.
     Additionally more behavior is moved to configuration, which will allow
@@ -646,25 +684,21 @@ ATTRIBUTES
     notfound, error. Example:
 
         handlers => {
-            found => { forward|detach|go|visit => $found_action_name },
-            notfound => { forward|detach|go|visit => $notfound_action_name },
-            error => { forward|detach|go|visit => $error_action_name },
+            found => { forward||detach||go||visit => $found_action_name },
+            notfound => { forward||detach||go||visit => $notfound_action_name },
+            error => { forward||detach||go||visit => $error_action_name },
         }
 
     Globalizing the 'error' and 'notfound' action handlers is probably the
     most useful. Each option key within 'handlers' canonically takes a
     hashref, where the key is either 'forward' or 'detach' and the value is
     the name of something we can call "$ctx->forward" or "$ctx->detach" on.
-    We coerce from a string value into a hashref where 'forward' is the key.
+    We coerce from a string value into a hashref where 'detach' is the key.
     Example:
 
         handlers => { notfound => '/notfound' },
 
-    would coerce to "handlers => {notfound => {forward => '/notfound'}}"
-
-METHODS
-    This role defines the follow accessors which subclasses may wish to
-    override.
+    would coerce to "handlers => {notfound => {detach => '/notfound'}}"
 
 FIND CONDITION DETAILS
     This section adds details regarding what a find condition is ond
