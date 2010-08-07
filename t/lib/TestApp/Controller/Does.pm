@@ -207,19 +207,6 @@ sub role_value_store
     push @{$ctx->stash->{res}}, 'role_value_store';
 }
 
-sub defaultsb
-  :Path('defaultsb') 
-  :Does(BuildDBICResult[store=>'Schema::User'])
-{
-    my ($self, $ctx, $id) = @_;
-    push @{$ctx->stash->{res}}, 'defaultsb';
-}
-
-    sub defaultsb_FOUND :Action {
-        my ($self, $ctx, $user) = @_;
-        $ctx->stash(user=>$user);
-    }
-
 sub user_role_root 
   :Chained('/')
   :PathPrefix 
@@ -245,25 +232,6 @@ sub user_role_root
         {
             my ($self, $ctx) = @_;
             my $role = $ctx->stash->{user_role}->role->name;
-            push @{$ctx->stash->{res}}, $role;
-
-        }
-
-    sub user_role2
-      :Does(BuildDBICResult[store=>{stash=>'user_role_rs'},find_condition=>{constraint_name=>'primary',match_order=>[qw/fk_role_id fk_user_id/],},auto_stash=>1])
-      :Chained('user_role_root')
-      :CaptureArgs(2)
-    {
-        my ($self, $ctx, $uid, $rid) = @_;
-        push @{$ctx->stash->{res}}, 'user_role_root2';
-    }
-
-        sub user_role_display2
-          :Chained('user_role2')
-          :Args(0)
-        {
-            my ($self, $ctx) = @_;
-            my $role = $ctx->stash->{user_role2}->role->name;
             push @{$ctx->stash->{res}}, $role;
 
         }

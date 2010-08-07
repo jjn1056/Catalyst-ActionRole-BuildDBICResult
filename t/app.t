@@ -206,18 +206,6 @@ ok my $generated = request(GET '/does/generated/100')->content,
 is $generated, 'generated,john@shutterstock.com',
   'got expected values for generated not found';
 
-ok my $does_chained_multi2 = request(GET '/does/user_role2/200/100/user_role_display2')->content,
-  'checking user_role2';
-
-is $does_chained_multi2, 'user_role_root2,member',
-  'got expected values for chained_multi2 not found';
-
-ok my $userb100 = request(GET '/does/defaultsb/100')->content,
-  'got userb 100';
-
-is $userb100, 'defaultsb,john@shutterstock.com',
-  'got expected values for user 100';
-
 
 done_testing;
 
