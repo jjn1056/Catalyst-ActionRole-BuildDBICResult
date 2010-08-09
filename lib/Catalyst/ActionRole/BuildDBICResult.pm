@@ -1094,6 +1094,39 @@ into a hashref where 'detach' is the key.  Example:
 
 would coerce to "handlers => {notfound => {detach => '/notfound'}}"
 
+=head1 SUBROUTINE ATTRIBUTES
+
+So far all the examples given have demonstrated used via configuration and the
+C<action_args> key.  Personally, I think this is the most flexible and clean
+option.  However, L<Catalyst> actions have traditionally supported subroutine
+attributes as a means of configuration.  Although subroutine attributes have
+some significant drawbacks, you may prefer them if you think of the configuration
+information as fundenmental to your action / controller design.  If so, the
+following attributes can be set in this manner.
+
+=over 4
+
+=item Store
+
+Same as C<$action => {store => $storage}>.  Example:
+
+    sub myaction :Action
+        Store('{model=>"Schema::User"}')
+
+=item Find_condtion
+
+Same as C<$action => {store => $storage}>.  Example:
+
+    sub myaction :Action
+        Find_condition('{model=>"Schema::User"}')
+
+=back
+
+Currently the options C<handlers> is not supported in this manner.  This is
+because the data structures that compose this options are highly prone to 
+error when I tried to write tests for them.  Rational disagreement and patches
+in support would be very welcomed.
+
 =head1 FIND CONDITION DETAILS
 
 This section adds details regarding what a find condition is ond provides some

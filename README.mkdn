@@ -735,6 +735,35 @@ into a hashref where 'detach' is the key.  Example:
 
 would coerce to "handlers => {notfound => {detach => '/notfound'}}"
 
+# SUBROUTINE ATTRIBUTES
+
+So far all the examples given have demonstrated used via configuration and the
+`action_args` key.  Personally, I think this is the most flexible and clean
+option.  However, [Catalyst](http://search.cpan.org/perldoc?Catalyst) actions have traditionally supported subroutine
+attributes as a means of configuration.  Although subroutine attributes have
+some significant drawbacks, you may prefer them if you think of the configuration
+information as fundenmental to your action / controller design.  If so, the
+following attributes can be set in this manner.
+
+- Store
+
+Same as `$action =` {store => $storage}>.  Example:
+
+    sub myaction :Action
+        Store('{model=>"Schema::User"}')
+
+- Find_condtion
+
+Same as `$action =` {store => $storage}>.  Example:
+
+    sub myaction :Action
+        Find_condition('{model=>"Schema::User"}')
+
+Currently the options `handlers` is not supported in this manner.  This is
+because the data structures that compose this options are highly prone to 
+error when I tried to write tests for them.  Rational disagreement and patches
+in support would be very welcomed.
+
 # FIND CONDITION DETAILS
 
 This section adds details regarding what a find condition is ond provides some
