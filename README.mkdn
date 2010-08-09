@@ -1,367 +1,8 @@
-package Catalyst::ActionRole::BuildDBICResult;
-
-BEGIN {
-  $Catalyst::Does::BuildDBICResult::VERSION = '0.01';
-}
-
-use Moose::Role;
-use namespace::autoclean;
-use Perl6::Junction qw(any all);
-use Try::Tiny qw(try catch);
-
-requires 'name', 'dispatch';
-
-use MooseX::Types -declare => [
-    qw(StoreType FindCondition FindConditions HandlerActionInfo Handlers)
-];
-
-use MooseX::Types::Moose qw/HashRef ArrayRef Object CodeRef Str Bool/;
-
-subtype StoreType,
-    as HashRef,
-    where {
-        my ($store_type, @extra) = keys %$_;
-        my $return;
-        unless(@extra) {
-            if($store_type eq any(qw/model accessor stash value code/)) {
-                $return = 1;
-            } else {
-                $return = 0;
-            }
-        } else {
-            $return = 0;
-        }
-        $return;
-    };
-
-coerce StoreType,
-    from Object,
-    via { +{value => $_} },
-    from CodeRef,
-    via { +{code => $_} },
-    from Str,
-    via { 
-        my $type = $_;
-        my $return;
-        if(
-            ($type=~m/::/) ||
-            ($type=~m/^[A-Z]/)
-        ) {
-            $return = {model => $type};
-        } else {
-            $return = {stash => "$type"};
-        }
-        $return;
-    };
-
-has 'store' => (
-    isa => StoreType,
-    is => 'ro',
-    coerce => 1,
-    lazy_build => 1,
-);
-
-sub _build_store {
-    my $self = shift @_;
-    if(my $store = $self->attributes->{Store}->[0]) {
-        my ($value, @extra) =  eval $store || eval '"$store"';
-        if(@extra) {
-            return {$value, @extra};
-        } else {
-            return $value;
-        }
-    } else {
-        return +{accessor=>'get_model'}
-    }
-}
-
-subtype FindCondition,
-    as HashRef,
-    where {
-        my @keys = keys(%$_);
-        my $return;
-        if(
-            (any(@keys) eq any(qw/constraint_name columns/)) and
-            (all(@keys) eq any(qw/constraint_name match_order columns/))
-        ) {
-            if($_->{columns} and ref $_->{columns}) {
-                $return = ref $_->{columns} eq 'ARRAY' ? 1 : 0;
-            } else {
-                $return = 1;
-            }
-        } else {
-            $return = 0;
-        }
-        $return;
-    };
-
-coerce FindCondition,
-    from Str,
-    via { +{constraint_name=>$_} },
-    from ArrayRef,
-    via { +{columns=>$_} };
-
-subtype FindConditions,
-    as ArrayRef[FindCondition];
-
-coerce FindConditions,
-    from FindCondition,
-    via { +[$_] },
-    from Str,
-    via { +[{constraint_name=>$_}] },
-    from ArrayRef,
-    via {
-        [map { to_FindCondition($_) } @$_];
-    };
-
-has 'find_condition' => (
-    isa => FindConditions,
-    is => 'ro',
-    coerce => 1,
-    lazy_build => 1,
-);
-
-sub _build_find_condition {
-    my $self = shift @_;
-    if(my $fc = $self->attributes->{Find_condition}->[0]) {
-        my ($value, @extra) =  eval $fc || eval '"$fc"';
-        if(@extra) {
-            return [$value, @extra];
-        } else {
-            return $value;
-        }
-    } else {
-        return  +[{constraint_name=>'primary'}] 
-    }
-}
-
-has 'auto_stash' => (is=>'ro', isa=>Bool|Str, lazy_build=>1);
-
-sub _build_auto_stash {
-    my $self = shift @_;
-    if(my $as = $self->attributes->{Auto_stash}->[0]) {
-        my ($value, @extra) =  eval $as || eval '"$as"';
-        if(@extra) {
-            return $value;
-        } else {
-            return $value;
-        }
-    } else {
-        return 0;
-    }
-}
-
-
-subtype HandlerActionInfo,
-    as HashRef,
-    where {
-        my @keys = keys(%$_);
-        if(
-            ($#keys == 0) and
-            (all(@keys) eq any(qw/forward detach visit go/))
-        ) {
-            1;
-        } else {
-            0;
-        }
-    },
-    message { "Disallowed Key in: ". join(',', keys(%$_)) };
-
-subtype Handlers,
-    as HashRef[HandlerActionInfo],
-    where {
-        my @keys = keys(%$_);
-        if(all(@keys) eq any(qw/found notfound error/)) {
-            1;
-        } else {
-            0;
-        }
-    },
-    message { "Disallowed key in: ". join(',',keys(%$_)) };
-
-coerce Handlers,
-    from HashRef[Str],
-    via { 
-        my ($type,$target) = %$_;
-        +{$type => {detach=>$target}};
-     };
-
-has 'handlers' => (
-    is => 'ro',
-    isa => Handlers,
-    coerce => 1,
-    predicate => 'has_handlers',
-);
-
-sub resultset_from_model {
-    my ($self, $controller, $ctx, $store_value) = @_;
-    return $ctx->model($store_value);
-}
-
-sub resultset_from_accessor {
-    my ($self, $controller, $ctx, $store_value) = @_;
-    if(my $code = $controller->can($store_value)) {
-        return $controller->$code();
-    } else {
-        $ctx->error("$store_value is not a accessor on $controller");
-    }
-    return;
-}
-
-sub resultset_from_stash {
-    my ($self, $controller, $ctx, $store_value) = @_;
-    return $ctx->stash->{$store_value};
-}
-
-sub resultset_from_value {
-    my ($self, $controller, $ctx, $store_value) = @_;
-    return $store_value;
-}
-
-sub resultset_from_code {
-    my ($self, $controller, $ctx, $store_value) = @_;
-    my $code = ref $store_value eq 'CODE' ? $store_value : $controller->can($store_value);
-    my @args = @{$ctx->req->args};
-    if($code) {      
-        return $code->($controller, $self, $ctx, @args);
-    } else {
-        $ctx->error("Can't call code when it doesn't exist");
-    }
-}
-
-sub prepare_resultset {
-    my ($self, $controller, $ctx) = @_;
-    my ($store_type, $store_value) = %{$self->store};
-
-    my $resultset;
-    if(my $code = $self->can('resultset_from_'.$store_type)) {
-        $resultset = $self->$code($controller, $ctx, $store_value);
-    } else {
-        $ctx->error("'$store_type' is not valid.");
-    }
-
-    if($resultset && ref $resultset && $resultset->isa('DBIx::Class::ResultSet')) {
-        return $resultset;
-    } else {
-        $ctx->error("Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
-    }
-}
-
-sub columns_from_find_condition {
-    my ($self, $resultset, $find_condition) = @_;
-    my @columns;
-    if(my $constraint_name = $find_condition->{constraint_name}) {
-        @columns = $resultset->result_source->unique_constraint_columns($constraint_name);
-    } else {
-        if(@columns = @{$find_condition->{columns}}) {
-            unless($resultset->result_source->name_unique_constraint(\@columns)) {
-                my $columns = join ',', @columns;
-                my $name = $resultset->result_source->name;
-                Catalyst::Exception->throw(message=>"Fields [$columns] don't match any constraints in source $name");           
-            }
-        } else {
-            Catalyst::Exception->throw(message=>'You need either a constraint_name or columns definition');
-        }
-    }
-    if(my $match_order = $find_condition->{match_order}) {
-        my @match_order = @$match_order;
-        if( 
-            (@match_order == @columns) and
-            all(@match_order) eq any(@columns)
-        ) {
-            @columns = @match_order;
-        } else {  
-            Catalyst::Exception->throw(message=>"Bad match_order definition ". join(',', @match_order));
-        }
-    }
-    return @columns;
-}
-
-sub result_from_columns {
-    my ($self, $resultset, $args, $columns) = @_;
-    my %find_condition = map {$_ => shift(@$args)} @$columns;
-    return $resultset->find(\%find_condition);
-}
-
-sub get_type_target {
-    my ($self, $controller, $handler) = @_;
-    if($self->has_handlers && $self->handlers->{$handler}) {
-        return %{$self->handlers->{$handler}};
-    } else {
-        return ('forward', 
-            ($controller->action_for($self->name .'_'. uc($handler)) || 
-            $controller->action_for(uc($handler)))
-        );
-    }        
-}
-
-around 'dispatch' => sub  {
-
-    my $orig = shift @_;
-    my $self = shift @_;
-    my $ctx = shift @_;
-
-    my $controller = $ctx->component($self->class);
-    my $resultset = $self->prepare_resultset($controller,$ctx);
- 
-    my ($row, $err);
-    for my $find_condition( @{$self->find_condition}) {
-        my @args = @{$ctx->req->args};
-        my @columns = $self->columns_from_find_condition($resultset, $find_condition);
-
-        unless(@columns == @args) {
-            my $err = 'the number of args ($#args) does not equal the constraint fields ($#columns)';
-            $ctx->error($err);
-        }
-
-        try {
-            $row = $self->result_from_columns($resultset, \@args, \@columns);
-        } catch {
-            $err = $_;
-        };
-
-        last if($row or $err);
-    }
-
-    if($row && $self->auto_stash) {
-        my $key = $self->auto_stash;
-        $key = $key=~m/^[\w]{2,}/ ? $key : $self->name;
-        $ctx->stash($key => $row);
-    }
-
-    my $final_action_result = $self->$orig($ctx, @_);
-
-    if($err) {
-        my ($type, $target) = $self->get_type_target($controller, 'error');
-        if($target) {
-             $ctx->$type( $target, [$err, @{$ctx->req->args}] );
-        } else {
-            $ctx->error($err);
-        }
-    } 
-
-    if($row) {
-        my ($type, $target) = $self->get_type_target($controller, 'found');
-        if($target) {
-            $final_action_result = $ctx->$type( $target, [$row, @{$ctx->req->args}] );
-        } 
-    } else {
-        my ($type, $target) = $self->get_type_target($controller, 'notfound');
-        if($target) {
-            $final_action_result =  $ctx->$type( $target, $ctx->req->args );
-        }
-    }
-
-    return $final_action_result;
-};
-
-1;
-
-=head1 NAME
+# NAME
 
 Catalyst::ActionRole::BuildDBICResult
 
-=head1 SYNOPSIS
+# SYNOPSIS
 
 The following is example usage for this role.
 
@@ -372,6 +13,7 @@ The following is example usage for this role.
 
     BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
+
     __PACKAGE__->config(
         action_args => {
             user => { store => 'DBICSchema::User' },
@@ -391,6 +33,7 @@ The following is example usage for this role.
     sub  user_FOUND :Action {
         my ($self, $ctx, $user, $id) = @_;
         
+
         ## Your $id was found in DBICSchema::User and was passed to the action
         ## as $user.  You also get the original $id in case you need it.
     }
@@ -416,6 +59,7 @@ the information related to actions closer together
 
     BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
+
     __PACKAGE__->config(
         action_args => {
             user => { store => 'DBICSchema::User' },
@@ -437,14 +81,14 @@ the information related to actions closer together
 
 Please see the test cases for more detailed examples.
 
-=head1 DESCRIPTION
+# DESCRIPTION
 
-This is a L<Moose::Role> intending to enhance any L<Catalyst::Action>, typically
-applied in your L<Catalyst::Controller::ActionRole> based controllers, although
+This is a [Moose::Role](http://search.cpan.org/perldoc?Moose::Role) intending to enhance any [Catalyst::Action](http://search.cpan.org/perldoc?Catalyst::Action), typically
+applied in your [Catalyst::Controller::ActionRole](http://search.cpan.org/perldoc?Catalyst::Controller::ActionRole) based controllers, although
 it can also be consumed as a role on your custom action classes (such as any 
-class which extends L<Catalyst::Action>.)
+class which extends [Catalyst::Action](http://search.cpan.org/perldoc?Catalyst::Action).)
 
-Mapping incoming arguments to a particular result in a L<DBIx::Class> based model
+Mapping incoming arguments to a particular result in a [DBIx::Class](http://search.cpan.org/perldoc?DBIx::Class) based model
 is a pretty common development case.  Making choices based on the return of that
 result is also quite common.  For example, if you can't 'find' a record matching 
 the args, you may wish to redirect to a not found error page.  The goal of this 
@@ -478,12 +122,12 @@ first matching handler takes the request and the remaining are ignored.
 
 It is not the intention of this action role to handle 'kitchen sink' tasks
 related to accessing the your DBIC model.  If you need more we recommend looking
-at L<Catalyst::Controller::DBIC::API> for general API access needs or for a
-more complete CRUD setup check out L<CatalystX::CRUD> or L<Catalyst::Plugin::AutoCRUD>.
+at [Catalyst::Controller::DBIC::API](http://search.cpan.org/perldoc?Catalyst::Controller::DBIC::API) for general API access needs or for a
+more complete CRUD setup check out [CatalystX::CRUD](http://search.cpan.org/perldoc?CatalystX::CRUD) or [Catalyst::Plugin::AutoCRUD](http://search.cpan.org/perldoc?Catalyst::Plugin::AutoCRUD).
 
-=head1 EXAMPLES
+# EXAMPLES
 
-Assuming "model("DBICSchema::User") is a L<DBIx::Class::ResultSet>, we can
+Assuming "model("DBICSchema::User") is a [DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet), we can
 replace the following code:
 
     package MyApp::Controller::MyController;
@@ -519,6 +163,7 @@ With something like this code:
 
     BEGIN { extends 'Catalyst::Controller::Does' }
  
+
    __PACKAGE__->config(
         action_args => {
             user => { store => 'Schema::User' },
@@ -556,6 +201,7 @@ as NOTFOUND or ERROR) you can move more to the configuration:
 
     BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
+
    __PACKAGE__->config(
         action_args => {
             user => {
@@ -675,7 +321,7 @@ getting a result (or not) from a store and letting a View pick it u:
 
     1;
 
-And assuming you have a root end action that is using L<Catalyst::Action::RenderView>
+And assuming you have a root end action that is using [Catalyst::Action::RenderView](http://search.cpan.org/perldoc?Catalyst::Action::RenderView)
 or similar, you will automatically delagate to a View object and send it a stash
 with a 'user' result.
 
@@ -686,27 +332,26 @@ rapid development and more easily centralized behaviors.
 
 NOTE: Variable and class names above choosen for documentation readability
 and should not be considered best practice recomendations. For example, I would
-not name my L<Catalyst::Model::DBIC::Schema> based model 'DBICSchema'.
+not name my [Catalyst::Model::DBIC::Schema](http://search.cpan.org/perldoc?Catalyst::Model::DBIC::Schema) based model 'DBICSchema'.
  
-=head1 ATTRIBUTES
+
+# ATTRIBUTES
 
 This role defines the following attributes.
 
-=head2 store
+## store
 
-This defines the accessor by which we get a L<DBIx::Class::ResultSet> suitable
+This defines the accessor by which we get a [DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet) suitable
 for applying a L</find_condition>.  The canonical form is a HashRef where the
 keys / values conform to the following template.
 
     { model||accessor||stash||value||code => Str||Code }
 
-Default is C<accessor => Str>, details follow:
+Default is `accessor =` Str>, details follow:
 
-=over 4
+- {model => '$dbic_model_name'}
 
-=item {model => '$dbic_model_name'}
-
-Store comes from a L<Catalyst::Model::DBIC::Schema> based model.  This is the
+Store comes from a [Catalyst::Model::DBIC::Schema](http://search.cpan.org/perldoc?Catalyst::Model::DBIC::Schema) based model.  This is the
 string you put in "$c->model" as in "$c->model('DBICSchema::User')".
 
     __PACKAGE__->config(
@@ -717,13 +362,13 @@ string you put in "$c->model" as in "$c->model('DBICSchema::User')".
         }
     );
 
-This retrieves a L<DBIx::Class::ResultSet> via $ctx->model($dbic_model_name).
+This retrieves a [DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet) via $ctx->model($dbic_model_name).
 
-=item {accessor => '$get_resultset'}
+- {accessor => '$get_resultset'}
 
 Calls a accessor on the containing controller.  This is defined as a method
 which returns but doesn't mutate the instance data, such as created by "is=>'ro'"
-in a L<Moose> attribute option list.
+in a [Moose](http://search.cpan.org/perldoc?Moose) attribute option list.
 
     __PACKAGE__->config(
         action_args => {
@@ -752,7 +397,7 @@ in a L<Moose> attribute option list.
     }
 
 The containing controller must define this accessor and it must return a proper
-L<DBIx::Class::ResultSet> or an exception is thrown.
+[DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet) or an exception is thrown.
 
 Since this is an accessor we are calling, we just invoke it with the calling
 controller instance only, as in $controller->$accessor.  If you need a more
@@ -760,7 +405,8 @@ flexible code object, or something that can have access to more information
 please see the 'code' store below.
 
 
-=item {stash => '$name_of_stash_key' }
+
+- {stash => '$name_of_stash_key' }
 
 Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
 
@@ -775,7 +421,7 @@ Looks in $ctx->stash->{$name_of_stash_key} for a resultset.
 This is useful if you are descending a chain of actions and modifying or
 restricting a resultset based previous user actions.
 
-=item {value => $resultset_object}
+- {value => $resultset_object}
 
 Assigns a literal value, expected to be a value L<DBIx:Class::ResultSet>
 
@@ -789,12 +435,12 @@ Assigns a literal value, expected to be a value L<DBIx:Class::ResultSet>
 
 Useful if you need to directly assign an already prepared resultset as the 
 value for doing $rs->find against.  You might use this with a more capable
-inversion of control container, such as L<Catalyst::Plugin::Bread::Board>.
+inversion of control container, such as [Catalyst::Plugin::Bread::Board](http://search.cpan.org/perldoc?Catalyst::Plugin::Bread::Board).
 
-=item {code => sub { ... }||'controller_method_name'}
+- {code => sub { ... }||'controller_method_name'}
 
 Similar to the 'value' option above, might be useful if you are doing tricky
-setup.  Should be a subroutine reference that return a L<DBIx::Class::ResultSet>
+setup.  Should be a subroutine reference that return a [DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet)
 or the string name of a method inside the containing controller.
 
     sub get_me_a_resultset {
@@ -824,19 +470,15 @@ or the string name of a method inside the containing controller.
 
 The coderef gets the following arguments: $controller, which is the controller
 object containing the action, $action, which is the action object for the 
-L<Catalyst::Action> based instance, $ctx, which is the current context, and an array
+[Catalyst::Action](http://search.cpan.org/perldoc?Catalyst::Action) based instance, $ctx, which is the current context, and an array
 of arguments which are the arguments passed to the action.
-
-=back
 
 NOTE: In order to reduce extra boilerplate and needless typing in your
 configuration, we will automatically try to coerce a String value to one of the
 listed HashRef values.  We coerce depending on the String value given based on
 the following criteria:
 
-=over 4
-
-=item store => Str
+- store => Str
 
 We automatically coerce a Str value of $str to {model => $str}, IF $str
 begins with an uppercased letter or the string contains "::", indicating the
@@ -851,6 +493,7 @@ this is a common case for these types.
             },
         }
     );
+
 
 
     ## Perl practices indicate you should Title Case object namespaces, but
@@ -874,9 +517,9 @@ this is a common case for these types.
         }
     );
 
-=item store => blessed $object isa L<DBIx::Class::ResultSet>
+- store => blessed $object isa [DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet)
 
-If the value is a blessed object of the correct type (L<DBIx::Class::ResultSet>)
+If the value is a blessed object of the correct type ([DBIx::Class::ResultSet](http://search.cpan.org/perldoc?DBIx::Class::ResultSet))
 we just assume your want a 'value' type.
 
     __PACKAGE__->config(
@@ -888,7 +531,7 @@ we just assume your want a 'value' type.
         }
     );
 
-=item store => CodeRef
+- store => CodeRef
 
 If the value is a subroutine reference, we coerce to the coderef type.
 
@@ -901,12 +544,10 @@ If the value is a subroutine reference, we coerce to the coderef type.
         }
     );
 
-=back
-
 Coercions are of course optional; you may wish to skip them to you want better
 self documenting code.
 
-=head2 find_condition
+## find_condition
 
 This should a way for a given resultset (defined in L</store> to find a single
 row.  Not finding anything is also an accepted option.  Everything else is some
@@ -1020,7 +661,7 @@ find_condition this is the default we use.
 
 Please see L</FIND CONDITIONS DETAILS> for more examples.
 
-=head2 auto_stash
+## auto_stash
 
 If this is true (default is false), upon a FOUND result, place the found
 result into the stash.  If the value is alpha_numeric, that value is
@@ -1048,13 +689,13 @@ increase compatibility with configuration serialization that store booleans as
 "true", "false", etc.  As a result we recommend avoiding using those key words 
 as your stash key.
 
-=head2 handlers
+## handlers
 
 Expects a HashRef and is optional.
 
 By default we delegate result conditions (FOUND, NOTFOUND, ERROR) to an action
 from a list of predefined options.  These predefined options work very similarly
-to L<Catalyst::Action::REST>, so if you are familiar with that system this will
+to [Catalyst::Action::REST](http://search.cpan.org/perldoc?Catalyst::Action::REST), so if you are familiar with that system this will
 seem very natural.
 
 First we try to match a result to an action specific handler, which follows the
@@ -1064,7 +705,7 @@ which is consuming this role, there could be actions 'user_FOUND', 'user_NOTFOUN
 the consuming action.
 
 If this template fails to match (as in you did not define such an action in
-the same L<Catalyst::Controller> subclass as your consuming action) we then
+the same [Catalyst::Controller](http://search.cpan.org/perldoc?Catalyst::Controller) subclass as your consuming action) we then
 look for a 'global' action in the controller, which is in the form of an action
 named $result_condition (basically actions named FOUND, NOTFOUND or ERROR).
 
@@ -1094,19 +735,19 @@ into a hashref where 'detach' is the key.  Example:
 
 would coerce to "handlers => {notfound => {detach => '/notfound'}}"
 
-=head1 FIND CONDITION DETAILS
+# FIND CONDITION DETAILS
 
 This section adds details regarding what a find condition is ond provides some
 examples.
 
-=head2 defining a find condition
+## defining a find condition
 
 By default we automatically handle the most common case, where a single argument
 maps to a single column primary key field.  In every other case, such as when
 you have multi field primary keys or you are finding by an alternative unique
 constraint (either single or multi fields) you need to declare the name of the
-L<DBIx::Class::ResultSource> unique constraint you are matching against.  Since
-L<DBIx::Class> does not require you to name your unique constraints (many people
+[DBIx::Class::ResultSource](http://search.cpan.org/perldoc?DBIx::Class::ResultSource) unique constraint you are matching against.  Since
+[DBIx::Class](http://search.cpan.org/perldoc?DBIx::Class) does not require you to name your unique constraints (many people
 let the underlying database follow its default convention in this matter),
 instead of a unique constraint name you may pass an ArrayRef of one or more
 columns which together define a uniqiue constraint.  Please note if you use this
@@ -1118,10 +759,11 @@ we attempt to match against the field order as defined in your call to
 L<DBIx::Class::ResultSource/primary_columns> or
 L<DBIx::Class::ResultSource/add_unique_constraint>.
 
-If you need to to specify the mapping of L<Catalyst> arguments to unique
+If you need to to specify the mapping of [Catalyst](http://search.cpan.org/perldoc?Catalyst) arguments to unique
 constraint fields, please see 'match_order' options.
     
-=head2 example find conditions
+
+## example find conditions
 
 Find where one arg is mapped to a single field primary key (default case).
 
@@ -1186,8 +828,8 @@ example also demonstrates the HashRef to ArrayRef of HashRefs coercion.
     );
 
 As above but lets you specify an argument to field order mapping which is
-different from that defined in your L<DBIx::Class::ResultSource>.  This let's
-you decouple your L<Catalyst> action arg definition from your L<DBIx::Class::ResultSource>
+different from that defined in your [DBIx::Class::ResultSource](http://search.cpan.org/perldoc?DBIx::Class::ResultSource).  This let's
+you decouple your [Catalyst](http://search.cpan.org/perldoc?Catalyst) action arg definition from your [DBIx::Class::ResultSource](http://search.cpan.org/perldoc?DBIx::Class::ResultSource)
 definition.
 
     __PACKAGE__->config(
@@ -1206,33 +848,30 @@ Again, the above example coerces to ArrayRef of HashRefs.  Please keep this in
 mind if you introspect the $action instance, since the coerced values may
 differ from those you placed in the configuration!
 
-=head1 NOTES
+# NOTES
 
 The following section is additional notes regarding usage or questioned related
 to this action role.
 
-=head2 Why an Action Role and not an Action Class?
+## Why an Action Role and not an Action Class?
 
 Role are more flexible, you can combine many roles easily to compose flexible
 behavior in an elegant way.  This does of course mean that you will need a
-more modern L<Catalyst> based on L<Moose>.
+more modern [Catalyst](http://search.cpan.org/perldoc?Catalyst) based on [Moose](http://search.cpan.org/perldoc?Moose).
 
-=head2 Why require such a modern L<Catalyst>?
+## Why require such a modern L<Catalyst>?
 
-We need a version of L<Catalyst> that is post the L<Moose> migration; additionally
+We need a version of [Catalyst](http://search.cpan.org/perldoc?Catalyst) that is post the [Moose](http://search.cpan.org/perldoc?Moose) migration; additionally
 we need equal to or greater than version '5.80025' for the ability to define 
-'action_args' in a controller.  See L<Catalyst::Controller> for more.
+'action_args' in a controller.  See [Catalyst::Controller](http://search.cpan.org/perldoc?Catalyst::Controller) for more.
 
-=head1 AUTHOR
+# AUTHOR
 
 John Napiorkowski <jjnapiork@cpan.org>
 
-=head1 COPYRIGHT & LICENSE
+# COPYRIGHT & LICENSE
 
 Copyright 2010, John Napiorkowski <jjnapiork@cpan.org>
 
 This program is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.
-
-=cut
-
