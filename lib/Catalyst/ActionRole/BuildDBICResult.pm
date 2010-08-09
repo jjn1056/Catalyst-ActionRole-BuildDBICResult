@@ -519,7 +519,7 @@ With something like this code:
 
     BEGIN { extends 'Catalyst::Controller::Does' }
  
-   __PACKAGE__->config(
+    __PACKAGE__->config(
         action_args => {
             user => { store => 'Schema::User' },
         }
