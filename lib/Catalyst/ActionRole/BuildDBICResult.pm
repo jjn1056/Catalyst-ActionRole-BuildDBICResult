@@ -406,6 +406,35 @@ The following is example usage for this role.
         $ctx->detach; ## stop processing request;
     }
 
+Alternatively, use the subroutine attributes version, if you prefer to keep all
+the information related to actions closer together
+
+    package MyApp::Controller::MyController;
+
+    use Moose;
+    use namespace::autoclean;
+
+    BEGIN { extends 'Catalyst::Controller::ActionRole' }
+ 
+    __PACKAGE__->config(
+        action_args => {
+            user => { store => 'DBICSchema::User' },
+        }
+    );
+
+    sub user :Path :Args(1) 
+        :Does('FindsDBICResult')
+        :Store('DBICSchema::User')
+    {
+        my ($self, $ctx, $id) = @_;
+
+        ## This is always executed, and is done so before we dispatch to one of
+        ## the following condition actions (but not before we attempt to find 
+        ## the @args in your store resultset. 
+    }
+
+    ## remaining actions as in above example
+
 Please see the test cases for more detailed examples.
 
 =head1 DESCRIPTION
