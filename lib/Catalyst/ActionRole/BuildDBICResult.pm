@@ -58,10 +58,22 @@ has 'store' => (
     isa => StoreType,
     is => 'ro',
     coerce => 1,
-    required => 1,
-    lazy => 1,
-    default => sub { +{accessor=>'get_model'} },
+    lazy_build => 1,
 );
+
+sub _build_store {
+    my $self = shift @_;
+    if(my $store = $self->attributes->{Store}->[0]) {
+        my ($value, @extra) =  eval $store || eval '"$store"';
+        if(@extra) {
+            return {$value, @extra};
+        } else {
+            return $value;
+        }
+    } else {
+        return +{accessor=>'get_model'}
+    }
+}
 
 subtype FindCondition,
     as HashRef,
@@ -106,12 +118,39 @@ has 'find_condition' => (
     isa => FindConditions,
     is => 'ro',
     coerce => 1,
-    required => 1,
-    lazy => 1,
-    default => sub { +[{constraint_name=>'primary'}] },
+    lazy_build => 1,
 );
 
-has 'auto_stash' => (is=>'ro', isa=>Bool|Str, required=>1, lazy=>1, default=>0);
+sub _build_find_condition {
+    my $self = shift @_;
+    if(my $fc = $self->attributes->{Find_condition}->[0]) {
+        my ($value, @extra) =  eval $fc || eval '"$fc"';
+        if(@extra) {
+            return [$value, @extra];
+        } else {
+            return $value;
+        }
+    } else {
+        return  +[{constraint_name=>'primary'}] 
+    }
+}
+
+has 'auto_stash' => (is=>'ro', isa=>Bool|Str, lazy_build=>1);
+
+sub _build_auto_stash {
+    my $self = shift @_;
+    if(my $as = $self->attributes->{Auto_stash}->[0]) {
+        my ($value, @extra) =  eval $as || eval '"$as"';
+        if(@extra) {
+            return $value;
+        } else {
+            return $value;
+        }
+    } else {
+        return 0;
+    }
+}
+
 
 subtype HandlerActionInfo,
     as HashRef,
@@ -632,7 +671,7 @@ keys / values conform to the following template.
 
     { model||accessor||stash||value||code => Str||Code }
 
-Details follow:
+Default is C<accessor => Str>, details follow:
 
 =over 4
 

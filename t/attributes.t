@@ -9,6 +9,7 @@ use_ok 'Catalyst::ActionRole::BuildDBICResult';
     use Moose;
     with 'Catalyst::ActionRole::BuildDBICResult';
     sub name {'name'}
+    sub attributes { +{}; }
     sub dispatch {}
 }
 
