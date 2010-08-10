@@ -556,7 +556,7 @@ as NOTFOUND or ERROR) you can move more to the configuration:
 
     BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
-   __PACKAGE__->config(
+    __PACKAGE__->config(
         action_args => {
             user => {
                 store => 'Schema::User',
