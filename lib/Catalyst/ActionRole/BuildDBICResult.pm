@@ -340,7 +340,7 @@ is a pretty common development case.  Making choices based on the return of that
 result is also quite common.  For example, if you can't 'find' a record matching 
 the args, you may wish to redirect to a not found error page.  The goal of this 
 action role is to reduce the amount of boilerplate code you have to write to get
-these common cases completed. It is intented to encapsulate all the boilerplate
+these common cases completed. It is intended to encapsulate all the boilerplate
 code required to perform this task correctly and safely.
 
 Basically we encapsulate the logic: "For a given resultset, does the find
@@ -354,7 +354,7 @@ finds a single row against the defined ResultSet, NOTFOUND when the find
 condition fails and ERROR when trying to resolve the find condition results
 in a catchable error.
 
-Based on the result condition we automatically call an action whose name 
+Based on the result condition we automatically forward to an action whose name 
 matches a default template, as in the SYNOPSIS above.  You may also override
 this default template via configuration.  This makes it easy to configure
 common results to be handled by a common action.
@@ -533,7 +533,7 @@ This would replace something like the following custom code:
     }
 
 Another example where the controller is very thin, basically we are just 
-getting a result (or not) from a store and letting a View pick it u:
+getting a result (or not) from a store and letting a View pick it up:
 
     package MyApp::Controller::User;
     use Moose;
