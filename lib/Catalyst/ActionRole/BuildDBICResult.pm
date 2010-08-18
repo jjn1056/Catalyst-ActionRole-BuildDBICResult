@@ -51,7 +51,7 @@ has 'find_condition' => (
 
 sub _build_find_condition {
     my $self = shift @_;
-    if(my $fc = $self->attributes->{Find_condition}->[0]) {
+    if(my $fc = $self->_search_attributes_for('Find_condition')) {
         my ($value, @extra) =  eval $fc || eval '"$fc"';
         if(@extra) {
             return [$value, @extra];
@@ -67,7 +67,7 @@ has 'auto_stash' => (is=>'ro', isa=>AutoStash, lazy_build=>1);
 
 sub _build_auto_stash {
     my $self = shift @_;
-    if(my $as = $self->attributes->{Auto_stash}->[0]) {
+    if(my $as = $self->_search_attributes_for('Auto_stash')) {
         my ($value, @extra) =  eval $as || eval '"$as"';
         if(@extra) {
             return $value;
