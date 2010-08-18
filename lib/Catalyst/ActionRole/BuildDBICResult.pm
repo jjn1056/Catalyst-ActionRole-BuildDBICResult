@@ -159,9 +159,15 @@ sub columns_from_find_condition {
     return @columns;
 }
 
+sub prepare_find_condition {
+    my ($self, $args, $columns) = @_;
+    my %find_condition = map {$_ => shift(@$args)} @$columns;
+    return %find_condition;
+}
+
 sub result_from_columns {
     my ($self, $resultset, $args, $columns) = @_;
-    my %find_condition = map {$_ => shift(@$args)} @$columns;
+    my %find_condition = $self->prepare_find_condition($args, $columns);
     return $resultset->find(\%find_condition);
 }
 
