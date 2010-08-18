@@ -27,7 +27,7 @@ sub _build_store {
             return $value;
         }
     } else {
-        return +{accessor=>'get_model'}
+        return +{accessor=>'model_resultset'}
     }
 }
 
@@ -572,7 +572,7 @@ keys / values conform to the following template.
 
     { model||accessor||stash||value||code => Str||Code }
 
-Default is C<accessor => Str>, details follow:
+Default is C<accessor => 'model_resultset'>, details follow:
 
 =over 4
 

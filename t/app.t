@@ -16,7 +16,7 @@ ok my $defaults = TestApp->controller('Inherit')->action_for('defaults'),
 
 isa_ok $defaults, 'Catalyst::Action';
 
-is_deeply $defaults->store, {accessor=>'get_model'},
+is_deeply $defaults->store, {accessor=>'model_resultset'},
   'default store';
 
 is_deeply $defaults->find_condition, [{constraint_name=>'primary'}],

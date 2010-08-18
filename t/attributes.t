@@ -16,7 +16,7 @@ use_ok 'Catalyst::ActionRole::BuildDBICResult';
 ok my $defaults = Test::Catalyst::ActionRole::BuildDBICResult->new(),
   'all defaults';
 
-is_deeply $defaults->store, {accessor=>'get_model'},
+is_deeply $defaults->store, {accessor=>'model_resultset'},
   'default store';
 
 is_deeply $defaults->find_condition, [{constraint_name=>'primary'}],
