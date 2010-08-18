@@ -17,9 +17,20 @@ has 'store' => (
     lazy_build => 1,
 );
 
+sub _search_attributes_for {
+    my ($self, $attr) = @_;
+    my $attribute = $self->attributes->{$attr} || $self->attributes->{lc $attr};
+    if ($attribute) {
+        my ($value, @more) = @{$attribute};
+        return @more ? [$value, @more] : $value;
+    } else {
+    return;
+    }
+}
+
 sub _build_store {
     my $self = shift @_;
-    if(my $store = $self->attributes->{Store}->[0]) {
+    if(my $store = $self->_search_attributes_for('Store')) {
         my ($value, @extra) =  eval $store || eval '"$store"';
         if(@extra) {
             return {$value, @extra};
@@ -119,13 +130,13 @@ sub prepare_resultset {
     if(my $code = $self->can('resultset_from_'.$store_type)) {
         $resultset = $self->$code($controller, $ctx, $store_value);
     } else {
-        $ctx->error("'$store_type' is not valid.");
+        Catalyst::Exception->throw(message=>"'$store_type' is not valid.");
     }
 
     if($resultset && ref $resultset && $resultset->isa('DBIx::Class::ResultSet')) {
         return $resultset;
     } else {
-        $ctx->error("Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
+        Catalyst::Exception->throw(message=>"Your Store ($store_type) failed to return a ResultSet, got a $resultset.");
     }
 }
 
@@ -199,7 +210,7 @@ around 'dispatch' => sub  {
 
         unless(@columns == @args) {
             my $err = 'the number of args ($#args) does not equal the constraint fields ($#columns)';
-            $ctx->error($err);
+            Catalyst::Exception->throw(message=>$err);
         }
 
         try {
@@ -224,7 +235,7 @@ around 'dispatch' => sub  {
         if($target) {
              $ctx->$type( $target, [$err, @{$ctx->req->args}] );
         } else {
-            $ctx->error($err);
+            Catalyst::Exception->throw(message=>$err);
         }
     } 
 
