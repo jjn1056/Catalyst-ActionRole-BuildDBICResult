@@ -225,6 +225,8 @@ around 'dispatch' => sub  {
     if($row && $self->auto_stash) {
         my $key = $self->auto_stash;
         $key = $key=~m/^[\w]{2,}/ ? $key : $self->name;
+        Catalyst::Exception->throw(message=>"$key is already defined in the stash!")
+          if defined($ctx->stash->{$key});
         $ctx->stash($key => $row);
     }
 
