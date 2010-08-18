@@ -236,6 +236,17 @@ sub user_role_root
 
         }
 
+sub too_many_args
+  :Does('BuildDBICResult')
+  :Path('too_many_args')
+  :Store('Schema::User')
+  :Args(2)
+{
+    my ($self, $ctx, $id1, $id2) = @_;
+    push @{$ctx->stash->{res}}, 'too_many_args';
+
+}
+
 sub end :Private {
     my ($self, $ctx) = @_;
     if(my $role = $ctx->stash->{role}) {

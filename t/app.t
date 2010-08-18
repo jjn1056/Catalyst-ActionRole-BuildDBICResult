@@ -206,6 +206,11 @@ ok my $generated = request(GET '/does/generated/100')->content,
 is $generated, 'generated,john@shutterstock.com',
   'got expected values for generated not found';
 
+ok my $too_many_args = request(GET '/does/too_many_args/1/2')->code,
+  'checking $too_many_args';
+
+is $too_many_args, '500',
+  'got expected error code';
 
 done_testing;
 
