@@ -1,58 +1,14 @@
 package Catalyst::ActionRole::BuildDBICResult;
 
-BEGIN {
-  $Catalyst::Does::BuildDBICResult::VERSION = '0.01';
-}
+our $VERSION = '0.01';
 
 use Moose::Role;
 use namespace::autoclean;
-use Perl6::Junction qw(any all);
 use Try::Tiny qw(try catch);
+use Perl6::Junction qw(any all);
+use Catalyst::ActionRole::BuildDBICResult::Types qw(:all);
 
-requires 'name', 'dispatch';
-
-use MooseX::Types -declare => [
-    qw(StoreType FindCondition FindConditions HandlerActionInfo Handlers)
-];
-
-use MooseX::Types::Moose qw/HashRef ArrayRef Object CodeRef Str Bool/;
-
-subtype StoreType,
-    as HashRef,
-    where {
-        my ($store_type, @extra) = keys %$_;
-        my $return;
-        unless(@extra) {
-            if($store_type eq any(qw/model accessor stash value code/)) {
-                $return = 1;
-            } else {
-                $return = 0;
-            }
-        } else {
-            $return = 0;
-        }
-        $return;
-    };
-
-coerce StoreType,
-    from Object,
-    via { +{value => $_} },
-    from CodeRef,
-    via { +{code => $_} },
-    from Str,
-    via { 
-        my $type = $_;
-        my $return;
-        if(
-            ($type=~m/::/) ||
-            ($type=~m/^[A-Z]/)
-        ) {
-            $return = {model => $type};
-        } else {
-            $return = {stash => "$type"};
-        }
-        $return;
-    };
+requires 'name', 'dispatch', 'attributes';
 
 has 'store' => (
     isa => StoreType,
@@ -75,45 +31,6 @@ sub _build_store {
     }
 }
 
-subtype FindCondition,
-    as HashRef,
-    where {
-        my @keys = keys(%$_);
-        my $return;
-        if(
-            (any(@keys) eq any(qw/constraint_name columns/)) and
-            (all(@keys) eq any(qw/constraint_name match_order columns/))
-        ) {
-            if($_->{columns} and ref $_->{columns}) {
-                $return = ref $_->{columns} eq 'ARRAY' ? 1 : 0;
-            } else {
-                $return = 1;
-            }
-        } else {
-            $return = 0;
-        }
-        $return;
-    };
-
-coerce FindCondition,
-    from Str,
-    via { +{constraint_name=>$_} },
-    from ArrayRef,
-    via { +{columns=>$_} };
-
-subtype FindConditions,
-    as ArrayRef[FindCondition];
-
-coerce FindConditions,
-    from FindCondition,
-    via { +[$_] },
-    from Str,
-    via { +[{constraint_name=>$_}] },
-    from ArrayRef,
-    via {
-        [map { to_FindCondition($_) } @$_];
-    };
-
 has 'find_condition' => (
     isa => FindConditions,
     is => 'ro',
@@ -135,7 +52,7 @@ sub _build_find_condition {
     }
 }
 
-has 'auto_stash' => (is=>'ro', isa=>Bool|Str, lazy_build=>1);
+has 'auto_stash' => (is=>'ro', isa=>AutoStash, lazy_build=>1);
 
 sub _build_auto_stash {
     my $self = shift @_;
@@ -150,41 +67,6 @@ sub _build_auto_stash {
         return 0;
     }
 }
-
-
-subtype HandlerActionInfo,
-    as HashRef,
-    where {
-        my @keys = keys(%$_);
-        if(
-            ($#keys == 0) and
-            (all(@keys) eq any(qw/forward detach visit go/))
-        ) {
-            1;
-        } else {
-            0;
-        }
-    },
-    message { "Disallowed Key in: ". join(',', keys(%$_)) };
-
-subtype Handlers,
-    as HashRef[HandlerActionInfo],
-    where {
-        my @keys = keys(%$_);
-        if(all(@keys) eq any(qw/found notfound error/)) {
-            1;
-        } else {
-            0;
-        }
-    },
-    message { "Disallowed key in: ". join(',',keys(%$_)) };
-
-coerce Handlers,
-    from HashRef[Str],
-    via { 
-        my ($type,$target) = %$_;
-        +{$type => {detach=>$target}};
-     };
 
 has 'handlers' => (
     is => 'ro',
@@ -359,7 +241,7 @@ around 'dispatch' => sub  {
 
 =head1 NAME
 
-Catalyst::ActionRole::BuildDBICResult
+Catalyst::ActionRole::BuildDBICResult - Find a DBIC Results from Arguments
 
 =head1 SYNOPSIS
 
@@ -407,7 +289,7 @@ The following is example usage for this role.
     }
 
 Alternatively, use the subroutine attributes version, if you prefer to keep all
-the information related to actions closer together
+the information related to actions closer together.
 
     package MyApp::Controller::MyController;
 
@@ -416,21 +298,11 @@ the information related to actions closer together
 
     BEGIN { extends 'Catalyst::Controller::ActionRole' }
  
-    __PACKAGE__->config(
-        action_args => {
-            user => { store => 'DBICSchema::User' },
-        }
-    );
-
     sub user :Path :Args(1) 
         :Does('FindsDBICResult')
         :Store('DBICSchema::User')
     {
         my ($self, $ctx, $id) = @_;
-
-        ## This is always executed, and is done so before we dispatch to one of
-        ## the following condition actions (but not before we attempt to find 
-        ## the @args in your store resultset. 
     }
 
     ## remaining actions as in above example
