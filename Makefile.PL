@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use inc::Module::Install;
 
+repository 'git://github.com/jjn1056/Catalyst-ActionRole-BuildDBICResult.git';
+
 requires (
     'Moose' => '1.10',
     'MooseX::Types' => '0.23',
