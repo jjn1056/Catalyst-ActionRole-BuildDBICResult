@@ -29,6 +29,7 @@
 \.bak$
 \#$
 \b\.#
+\.proverc
 
 # avoid OS X finder files
 \.DS_Store$
