@@ -1,6 +1,6 @@
 package Catalyst::ActionRole::BuildDBICResult;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Moose::Role;
 use namespace::autoclean;
@@ -331,6 +331,16 @@ the information related to actions closer together.
 Please see the test cases for more detailed examples.
 
 =head1 DESCRIPTION
+
+NOTE: For version 0.02 I added some code to make sure that when there are more
+than one find condition we don't stop on the first error.  This was done so
+that if you are trying to match on a numeric column (like a common auto inc PK)
+and on some text column (such as a unique user name) we don't generate a hard
+stop error when trying to do a text find against the numeric PK.  However this
+approach is not ideal, and as a result I am no longer convinced that feature is
+a good one.  I hack around it in case people are using this in production code
+but I would encourage people to avoid using the multiply find condition feature
+when the matched columns are not of the same type.
 
 This is a L<Moose::Role> intending to enhance any L<Catalyst::Action>, typically
 applied in your L<Catalyst::Controller::ActionRole> based controllers, although

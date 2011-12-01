@@ -1,5 +1,8 @@
 This file contains Change history for Catalyst-ActionRole-BuildDBICResult
 
+0.03  01 December 2011
+    * I forgot to checkin the note mentioned in the previous changes notes :(
+
 0.02  01 December 2011
     * Changed the way we accumulate errors to allow for multiple find
       conditions that are all different data types
