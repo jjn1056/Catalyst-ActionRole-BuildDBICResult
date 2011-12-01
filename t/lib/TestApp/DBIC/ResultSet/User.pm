@@ -10,7 +10,12 @@ sub find {
     my $self = shift @_;
     my $result = $self->next::method(@_);
     if($result) {
-        die 'BOO!' if $result->id == 104;
+        if(
+          $result->user_id == 104 || 
+          $result->user_id eq '104'
+        ) {
+            die 'BOO!';
+        }
     }
     return $result;
 }

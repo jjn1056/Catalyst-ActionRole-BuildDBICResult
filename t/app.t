@@ -1,5 +1,5 @@
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use Test::More 0.89;
 use HTTP::Request::Common qw/GET POST DELETE/;
 
@@ -59,20 +59,20 @@ is $user100, 'user_default,john@shutterstock.com',
 ok my $user_email = request(GET '/inherit/user_default/john@shutterstock.com')->content,
   'got user from email';
 
-is $user_email, 'user_default,john@shutterstock.com',
-  'got expected values for user email';
+is $user_email, 'user_default,error,john@shutterstock.com',
+  'got expected values for user email (john@shutterstock.com)';
 
 
-ok my $user_notfound = request(GET '/inherit/user_default/xxxx.com')->content,
+ok my $user_notfound = request(GET '/inherit/user_default/99999.com')->content,
   'got user from email';
 
-is $user_notfound, 'user_default,notfound',
+is $user_notfound, 'user_default,error,notfound',
   'got expected values for user not found';
 
 ok my $user_error = request(GET '/inherit/user_default/error@error.com')->content,
   'generated an error';
 
-is $user_error, 'user_default,error,BOO,notfound',
+is $user_error, 'user_default,error,error,BOO,notfound',
   'got expected values for user not found';
 
 
@@ -82,7 +82,7 @@ ok my $user_detach_error = request(GET '/inherit/user_detach_error/100')->conten
 is $user_detach_error, 'user_detach_error,john@shutterstock.com',
   'got expected values for user_detach_error not found';
 
-ok my $user_detach_notfound = request(GET '/inherit/user_detach_error/xxxxxx')->content,
+ok my $user_detach_notfound = request(GET '/inherit/user_detach_error/99999')->content,
   'checking auto stash';
 
 is $user_detach_notfound, 'user_detach_error,local_notfound',
@@ -114,7 +114,7 @@ ok my $user_code_store2 = request(GET '/inherit/user_code_store2/102')->content,
 is $user_code_store2, 'user_code_store2,jay@shutterstock.com',
   'got expected values for user_code_store2 not found';
 
-ok my $global_not_found = request(GET '/inherit/user_code_store2/xxxx')->content,
+ok my $global_not_found = request(GET '/inherit/user_code_store2/99999')->content,
   'checking global_not_found';
 
 is $global_not_found, 'user_code_store2,global_not_found',
@@ -136,19 +136,19 @@ is $doesuser100, 'user_default,john@shutterstock.com',
 ok my $does_user_email = request(GET '/does/user_default/john@shutterstock.com')->content,
   'got user from email';
 
-is $does_user_email, 'user_default,john@shutterstock.com',
-  'got expected values for user email';
+is $does_user_email, 'user_default,error,john@shutterstock.com',
+  'got expected values for user email (john@shutterstock.com)';
 
-ok my $does_user_notfound = request(GET '/does/user_default/xxxx.com')->content,
+ok my $does_user_notfound = request(GET '/does/user_default/99999.com')->content,
   'got user from email';
 
-is $does_user_notfound, 'user_default,notfound',
+is $does_user_notfound, 'user_default,error,notfound',
   'got expected values for user not found';
 
 ok my $does_user_error = request(GET '/does/user_default/error@error.com')->content,
   'generated an error';
 
-is $does_user_error, 'user_default,error,BOO,notfound',
+is $does_user_error, 'user_default,error,error,BOO,notfound',
   'got expected values for user not found';
 
 ok my $does_user_detach_error = request(GET '/does/user_detach_error/100')->content,
@@ -157,7 +157,7 @@ ok my $does_user_detach_error = request(GET '/does/user_detach_error/100')->cont
 is $does_user_detach_error, 'user_detach_error,john@shutterstock.com',
   'got expected values for user_detach_error not found';
 
-ok my $does_user_detach_notfound = request(GET '/does/user_detach_error/xxxxxx')->content,
+ok my $does_user_detach_notfound = request(GET '/does/user_detach_error/99999')->content,
   'checking auto stash';
 
 is $does_user_detach_notfound, 'user_detach_error,local_notfound',
@@ -188,7 +188,7 @@ ok my $does_user_code_store2 = request(GET '/does/user_code_store2/102')->conten
 is $does_user_code_store2, 'user_code_store2,jay@shutterstock.com',
   'got expected values for $does_user_code_store2 not found';
 
-ok my $does_global_not_found = request(GET '/does/user_code_store2/xxxx')->content,
+ok my $does_global_not_found = request(GET '/does/user_code_store2/99999')->content,
   'checking $does_global_not_found';
 
 is $does_global_not_found, 'user_code_store2,global_not_found',

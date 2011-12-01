@@ -257,8 +257,9 @@ sub end :Private {
         my $email = $user->email;
         push @{$ctx->stash->{res}}, $email;
     }
-    if(my $res = $ctx->stash->{res}) {
-        $ctx->res->body(join(',', @$res));
+    if(defined(my $res = $ctx->stash->{res})) {
+        my $body = join(',', grep { $_ } @{$res||[]});
+        $ctx->res->body($body);
     }
 }
 

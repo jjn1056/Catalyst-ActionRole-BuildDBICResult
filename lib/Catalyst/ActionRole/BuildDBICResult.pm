@@ -1,6 +1,6 @@
 package Catalyst::ActionRole::BuildDBICResult;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Moose::Role;
 use namespace::autoclean;
@@ -179,7 +179,9 @@ sub prepare_find_condition {
 sub result_from_columns {
     my ($self, $resultset, $args, $columns) = @_;
     my %find_condition = $self->prepare_find_condition($args, $columns);
-    return $resultset->find(\%find_condition);
+    my $found_or_not;
+    $found_or_not = $resultset->find(\%find_condition);
+    return $found_or_not;
 }
 
 sub get_type_target {
@@ -203,7 +205,7 @@ around 'dispatch' => sub  {
     my $controller = $ctx->component($self->class);
     my $resultset = $self->prepare_resultset($controller,$ctx);
  
-    my ($row, $err);
+    my ($row, @err);
     for my $find_condition( @{$self->find_condition}) {
         my @args = @{$ctx->req->args};
         my @columns = $self->columns_from_find_condition($resultset, $find_condition);
@@ -216,10 +218,10 @@ around 'dispatch' => sub  {
         try {
             $row = $self->result_from_columns($resultset, \@args, \@columns);
         } catch {
-            $err = $_;
+            push @err, $_;
         };
 
-        last if($row or $err);
+        last if $row;
     }
 
     if($row && $self->auto_stash) {
@@ -232,12 +234,12 @@ around 'dispatch' => sub  {
 
     my $final_action_result = $self->$orig($ctx, @_);
 
-    if($err) {
+    if(scalar @err) {
         my ($type, $target) = $self->get_type_target($controller, 'error');
         if($target) {
-             $ctx->$type( $target, [$err, @{$ctx->req->args}] );
+             $ctx->$type( $target, [$_, @{$ctx->req->args}] ) for @err;
         } else {
-            Catalyst::Exception->throw(message=>$err);
+            Catalyst::Exception->throw(message=>join(',', @err));
         }
     } 
 
