@@ -1,5 +1,9 @@
 This file contains Change history for Catalyst-ActionRole-BuildDBICResult
 
+0.04  31 October 2012
+    * Fixes to the test suite related to how SQLite now cares about integers
+    * Up the version requires in the test cases now that C:ActionRole is core
+
 0.03  01 December 2011
     * I forgot to checkin the note mentioned in the previous changes notes :(
 

@@ -56,25 +56,25 @@ ok my $user100 = request(GET '/inherit/user_default/100')->content,
 is $user100, 'user_default,john@shutterstock.com',
   'got expected values for user 100';
 
+$SIG{__WARN__} = sub { die $_[0] };
+
 ok my $user_email = request(GET '/inherit/user_default/john@shutterstock.com')->content,
   'got user from email';
 
 is $user_email, 'user_default,error,john@shutterstock.com',
   'got expected values for user email (john@shutterstock.com)';
 
-
 ok my $user_notfound = request(GET '/inherit/user_default/99999.com')->content,
   'got user from email';
 
-is $user_notfound, 'user_default,error,notfound',
+is $user_notfound, 'user_default,notfound',
   'got expected values for user not found';
 
 ok my $user_error = request(GET '/inherit/user_default/error@error.com')->content,
   'generated an error';
 
-is $user_error, 'user_default,error,error,BOO,notfound',
+is $user_error, 'user_default,error,BOO,notfound',
   'got expected values for user not found';
-
 
 ok my $user_detach_error = request(GET '/inherit/user_detach_error/100')->content,
   'checking auto stash';
@@ -126,7 +126,6 @@ SKIP: {
       'checking role_value_store';
 }
 
-
 ok my $doesuser100 = request(GET '/does/user_default/100')->content,
   'got user 100';
 
@@ -136,20 +135,20 @@ is $doesuser100, 'user_default,john@shutterstock.com',
 ok my $does_user_email = request(GET '/does/user_default/john@shutterstock.com')->content,
   'got user from email';
 
-is $does_user_email, 'user_default,error,john@shutterstock.com',
+is $does_user_email, 'user_default,john@shutterstock.com',
   'got expected values for user email (john@shutterstock.com)';
 
 ok my $does_user_notfound = request(GET '/does/user_default/99999.com')->content,
   'got user from email';
 
-is $does_user_notfound, 'user_default,error,notfound',
-  'got expected values for user not found';
+is $does_user_notfound, 'user_default,notfound',
+  'got expected values for user (99999.com) nor found';
 
 ok my $does_user_error = request(GET '/does/user_default/error@error.com')->content,
   'generated an error';
 
-is $does_user_error, 'user_default,error,error,BOO,notfound',
-  'got expected values for user not found';
+is $does_user_error, 'user_default,error,BOO,notfound',
+  'got expected values for user (error@error.com) error,not found';
 
 ok my $does_user_detach_error = request(GET '/does/user_detach_error/100')->content,
   'checking auto stash';
@@ -162,7 +161,6 @@ ok my $does_user_detach_notfound = request(GET '/does/user_detach_error/99999')-
 
 is $does_user_detach_notfound, 'user_detach_error,local_notfound',
   'got expected values for user_detach_notfound not found';
-
 
 ok my $does_user_accessor_store = request(GET '/does/user_accessor_store/100')->content,
   'checking user_accessor_store';
